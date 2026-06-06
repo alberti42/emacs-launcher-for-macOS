@@ -99,6 +99,50 @@ script, XML, and JSON files.
 | `CONFIG` | the build script | `release` (default) or `debug`. |
 | `ICON_SRC` | the build script | Optional `.icns` for macOS versions before 26. |
 
+## Practical tips
+
+### Keep everything in one frame
+
+Emacs Launcher already reuses your existing graphical frame and only ever creates a
+frame when none exists. To make Emacs itself *place* a visited buffer nicely — reuse the
+window already showing it, otherwise switch in the current window, rather than splitting
+or popping — set `server-window`:
+
+```elisp
+;; Control where emacsclient shows a visited buffer: if it is already visible in
+;; a window, select that window; otherwise switch to it in the current window.
+;; This governs PLACEMENT, not frame creation.  It applies to requests that do
+;; not create a frame (`emacsclient' / `emacsclient -n').  It does NOT suppress
+;; `emacsclient -c': that frame is created in `server-process-filter' before
+;; `server-window' is ever consulted, so a new frame still appears.
+(defun my/server-switch-to-buffer (buffer)
+  "Select the window already showing BUFFER, or switch in the current window."
+  (let ((win (get-buffer-window buffer)))
+    (if win
+        (select-window win)
+      (switch-to-buffer buffer))))
+(setq server-window #'my/server-switch-to-buffer)
+```
+
+Emacs Launcher talks to the daemon over the `emacsclient` protocol, so this is the
+setting that governs where your files land.
+
+### If you instead open files with Emacs.app directly
+
+This is **not needed if you associate files with Emacs Launcher** (the recommended
+setup). It only matters if Finder's *Open With* points at the regular Emacs.app:
+
+```elisp
+;; Finder/macOS "Open with Emacs" does NOT go through emacsclient, so
+;; `server-window' above does not apply to it.  It arrives as a native NS
+;; Apple Event handled by Emacs's own open-file path, governed by
+;; `ns-pop-up-frames'.  Its default `fresh' reuses the first frame but opens a
+;; NEW frame for every subsequent file; nil always reuses the selected frame,
+;; matching the single-frame workflow above.
+(when (eq system-type 'darwin)
+  (setq ns-pop-up-frames nil))
+```
+
 ## Troubleshooting
 
 - **Nothing happens / Emacs doesn't open.** Make sure the daemon is running and
