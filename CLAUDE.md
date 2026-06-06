@@ -68,6 +68,10 @@ Three ways work arrives, all funnelling into `runEmacsGui(targets:)`:
 An `OpenTarget` is `(arg, position?)`; in exchange 2 a non-nil position emits
 `-position <pos>` just before its `-file`.
 
+`handleCLIFlags()` runs first in the entry point, *before* `NSApplication`: it prints
+help/version to stdout and `exit`s for the exact tokens `-h`/`--help`/`-V`/`--version`
+(exact-match only, so LS noise never trips it) — no AppKit, no Emacs contact.
+
 Both funnel into `runEmacsGui(files:)`, which does **two short socket exchanges** with
 the daemon (each is one connect → send one `\n`-terminated line → read the reply):
 1. **Probe** — one `-eval` returning `(t/nil "<bundle path>")`: whether any frame is on

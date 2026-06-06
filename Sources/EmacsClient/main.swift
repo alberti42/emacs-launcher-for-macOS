@@ -191,7 +191,45 @@ func parseCommandLine() -> [OpenTarget] {
     return targets
 }
 
+/// Handle `-h`/`--help` and `-V`/`--version` and exit, before any AppKit / Emacs work.
+/// Only exact tokens are matched, so Launch Services noise (`-psn_…`, `-NS…`) is never
+/// mistaken for a flag. Returns normally when no such flag is present.
+func handleCLIFlags() {
+    let args = CommandLine.arguments.dropFirst()
+    if args.contains("-V") || args.contains("--version") {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        print("Emacs Client \(version)")
+        exit(0)
+    }
+    guard args.contains("-h") || args.contains("--help") else { return }
+    print("""
+    Emacs Client — open files in your running Emacs daemon and bring it to the front.
+
+    Usage:
+      EmacsClient [+LINE[:COLUMN]] FILE...   open FILE(s), optionally at a position
+      EmacsClient                            just raise Emacs (create a frame if none)
+
+    Files (and org-protocol:// URLs) are sent to the Emacs server over its local
+    socket; Emacs is then activated via Launch Services. Relative paths resolve
+    against the current directory, and a +LINE / +LINE:COLUMN token applies to the
+    file that follows it.
+
+    Normally this app is launched by Finder / Dock / Spotlight / org-protocol; running
+    the binary directly is for command-line use.
+
+    Options:
+      -h, --help       show this help and exit
+      -V, --version    show version and exit
+
+    Environment:
+      EMACS_SOCKET_NAME   override the daemon socket (a path, or a server-name)
+    """)
+    exit(0)
+}
+
 // MARK: - Entry point
+
+handleCLIFlags()   // prints help/version and exits if requested; otherwise returns
 
 let app = NSApplication.shared
 let delegate = AppDelegate()

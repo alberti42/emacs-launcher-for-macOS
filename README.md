@@ -75,7 +75,8 @@ APP="/Applications/Emacs Client.app" ./emacsclient-swift-build.sh
   `+12` (line only) and plain paths work too; relative paths resolve against the
   current directory, and you can pass several `[+POS] FILE` pairs. (Note: a file path
   given to the **binary** is only honoured this way — passing it to `open -a` instead
-  carries no line/column, since Launch Services has no notion of one.)
+  carries no line/column, since Launch Services has no notion of one.) Run it with
+  `-h`/`--help` for usage, or `-V`/`--version`.
 
 - **org-protocol:** links like `org-protocol://capture?...` are handed straight to Emacs.
 
