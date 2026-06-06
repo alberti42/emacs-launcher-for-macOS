@@ -160,12 +160,47 @@ setup). It only matters if Finder's *Open With* points at the regular Emacs.app:
 
 ## How it works
 
-The app connects to the Emacs daemon's local socket and speaks its protocol directly.
-It asks whether a graphical frame already exists, opens your files (creating a frame
-only when none exists yet), then performs a two-layer raise: it tells Emacs which window
-to surface, and — because macOS 14+ won't let a background daemon front itself —
-activates Emacs's exact app bundle through Launch Services. It runs as an accessory app
-so it stays out of your way and exits immediately.
+Emacs normally runs as a background **daemon** (`emacs --daemon`): one long-lived
+process that has no window of its own. Your editing happens in *frames* — Emacs's word
+for windows — that clients ask the daemon to open or reuse. Emacs Launcher is one such
+client. Its job is to take a request from macOS (a file from Finder, an `org-protocol`
+link, or a plain Dock/Spotlight launch), carry it out in that daemon, and bring Emacs to
+the front. Here is what it does on each launch.
+
+**1. It connects to the daemon.** The daemon listens on a Unix-domain socket — a special
+file on disk, typically `$TMPDIR/emacs<uid>/server`. Emacs Launcher opens that socket and
+speaks the Emacs server protocol directly. This is the same protocol the `emacsclient`
+command-line tool uses, which is why the app needs no `emacsclient` binary installed.
+
+**2. It checks whether a window is already open.** It asks the daemon whether any
+*graphical* frame currently exists. This check matters because a daemon always keeps one
+invisible terminal frame alive in the background, so naively counting frames would always
+say "yes" and be misleading.
+
+**3. It opens your files.** It asks the daemon to visit the file (or files) you gave it.
+If a graphical frame already exists, the files open inside it; if none does, the app asks
+the daemon to create one first. With no file at all, it simply makes sure a frame is on
+screen.
+
+**4. It brings Emacs to the front — and this takes two steps.** This is the tricky part,
+and really the reason the app exists:
+
+- *Inside Emacs:* it tells the daemon to select and raise the correct window, so the
+  right buffer is the one you land on.
+- *At the macOS level:* since macOS 14, the system no longer lets a **background** process
+  push itself to the foreground — a deliberate anti-focus-stealing measure. Because the
+  daemon is a background process, it can no longer bring its own window forward. So Emacs
+  Launcher does it from the outside: it asks **Launch Services** (the macOS service that
+  opens and activates apps) to bring Emacs forward. macOS honors this, because it is one
+  app activating *another* app on the user's behalf — exactly the case the restriction
+  still allows.
+
+  It activates the **exact** Emacs app bundle the daemon is running from — which it asks
+  the daemon to report — in case you have more than one `Emacs.app` build installed.
+
+**5. It gets out of the way.** Emacs Launcher runs as an *accessory* app: no Dock icon,
+no menu bar. It does this one job in a fraction of a second and then quits. All you see is
+Emacs coming to the front.
 
 ## License
 
