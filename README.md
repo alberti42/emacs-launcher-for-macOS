@@ -107,4 +107,4 @@ Services. It runs as an accessory app so it stays out of your way and exits imme
 
 ## License
 
-See repository.
+MIT — see [LICENSE](LICENSE).
