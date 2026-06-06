@@ -4,8 +4,9 @@ A small, fast macOS app that opens files in your running **Emacs daemon** and br
 Emacs to the front — from Finder, the Dock, Spotlight, drag-and-drop, or
 `org-protocol://` links.
 
-It's a compiled Swift launcher (inspired by [emacs-plus]) that talks to `emacsclient`
-and works around the macOS 14+ behaviour that otherwise stops a background Emacs daemon
+It's a compiled Swift launcher (inspired by [emacs-plus]) that talks to the Emacs
+daemon **directly over its local socket** — no `emacsclient` binary required — and
+works around the macOS 14+ behaviour that otherwise stops a background Emacs daemon
 from coming to the foreground.
 
 [emacs-plus]: https://github.com/d12frosted/homebrew-emacs-plus
@@ -25,8 +26,8 @@ from coming to the foreground.
 ## Requirements
 
 - macOS 12 or later.
-- A running **Emacs server/daemon** with `emacsclient` available at
-  `~/.local/bin/emacsclient` (or point `$EC` elsewhere — see [Configuration](#configuration)).
+- A running **Emacs server/daemon** listening on its default local socket (the app
+  connects to it directly; no `emacsclient` binary is needed).
 - The Swift toolchain (Xcode or Command Line Tools) to build.
 
 Start a daemon if you don't already run one, e.g.:
@@ -79,16 +80,17 @@ script, XML, and JSON files.
 
 | Variable | Used by | Meaning |
 |----------|---------|---------|
-| `EC` | the app at runtime | Path to `emacsclient` (default `~/.local/bin/emacsclient`). |
+| `EMACS_SOCKET_NAME` | the app at runtime | Override the daemon socket (path, or a `server-name`). Defaults to the standard local socket. |
 | `APP` | the build script | Where to install the `.app` (default `~/Applications/Emacs Client.app`). |
 | `CONFIG` | the build script | `release` (default) or `debug`. |
 | `ICON_SRC` | the build script | Optional `.icns` for macOS versions before 26. |
 
 ## Troubleshooting
 
-- **Nothing happens / Emacs doesn't open.** Make sure the daemon is running
-  (`emacsclient -e t` should print `t`) and that `emacsclient` is where the app expects
-  it (`EC` / `~/.local/bin/emacsclient`).
+- **Nothing happens / Emacs doesn't open.** Make sure the daemon is running and
+  listening on its default local socket (`emacsclient -e t` should print `t`, or check
+  for `$TMPDIR/emacs<uid>/server`). If you use a non-default socket, set
+  `EMACS_SOCKET_NAME`.
 - **It doesn't appear under "Open With".** Re-run `./emacsclient-swift-build.sh` (it
   re-registers with Launch Services). If macOS is still confused, log out and back in.
 - **The wrong "Emacs Client" opens.** Some Emacs distributions (e.g. emacs-plus) ship
@@ -99,11 +101,12 @@ script, XML, and JSON files.
 
 ## How it works
 
-The app asks the daemon whether a graphical frame already exists, opens your files with
-`emacsclient -n` (adding `-c` only when there's no frame yet), then performs a two-layer
-raise: it tells Emacs which window to surface, and — because macOS 14+ won't let a
-background daemon front itself — activates Emacs's exact app bundle through Launch
-Services. It runs as an accessory app so it stays out of your way and exits immediately.
+The app connects to the Emacs daemon's local socket and speaks its protocol directly.
+It asks whether a graphical frame already exists, opens your files (creating a frame
+only when none exists yet), then performs a two-layer raise: it tells Emacs which window
+to surface, and — because macOS 14+ won't let a background daemon front itself —
+activates Emacs's exact app bundle through Launch Services. It runs as an accessory app
+so it stays out of your way and exits immediately.
 
 ## License
 

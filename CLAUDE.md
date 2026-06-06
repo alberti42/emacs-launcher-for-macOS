@@ -1,20 +1,23 @@
 # Emacs Client — macOS launcher app
 
 A small compiled macOS app (**"Emacs Client.app"**) that bridges Finder / Dock /
-Spotlight / drag-and-drop / `org-protocol://` to a running **emacsclient** daemon,
-applying the macOS 14+ foreground-activation workaround so Emacs actually comes to
-the front. It registers the relevant document types and the `org-protocol` URL
-scheme with Launch Services.
+Spotlight / drag-and-drop / `org-protocol://` to a running **Emacs daemon**, applying
+the macOS 14+ foreground-activation workaround so Emacs actually comes to the front.
+It registers the relevant document types and the `org-protocol` URL scheme with Launch
+Services.
 
-It is a native Swift reimplementation of an `emacsgui` zsh script (inspired by the
-emacs-plus project). The shell script and AppleScript applet are no longer part of
-this repo — the Swift app is the single deliverable.
+It speaks the **Emacs server protocol directly over the daemon's local Unix socket**
+(`Sources/EmacsClient/EmacsServer.swift`) — there is **no dependency on an `emacsclient`
+binary**. It started as a native Swift port of an `emacsgui` zsh script (inspired by the
+emacs-plus project); the shell script and AppleScript applet are no longer part of this
+repo — the Swift app is the single deliverable.
 
 ## Layout
 
 | Path | Role |
 |------|------|
-| `Sources/EmacsClient/main.swift` | The whole app — one file. |
+| `Sources/EmacsClient/main.swift` | App lifecycle, open-event handling, the two-exchange flow, activation. |
+| `Sources/EmacsClient/EmacsServer.swift` | Native Emacs server-protocol client: socket-path resolution, `&`-quoting, send/parse. |
 | `Package.swift` | SwiftPM executable target `EmacsClient` (macOS 12+). |
 | `Info.plist` | Static bundle plist: UTIs, document types, `org-protocol` scheme, `LSUIElement`. Copied verbatim into the bundle. |
 | `emacsclient-swift-build.sh` | Build + bundle + sign + register. The only build entry point. |
@@ -57,41 +60,53 @@ Two entry points in `AppDelegate`:
   ~60 ms hop (to let a pending open event win the race and avoid creating an empty
   frame *and* opening a file), it surfaces a frame.
 
-Both funnel into `runEmacsGui(files:)`, the port of the shell logic:
-1. **Frame check** — ask the daemon whether any frame is on a *graphical* display
-   (`display-graphic-p` over `frame-list`). A daemon always keeps an invisible
-   terminal frame, so counting frames would lie.
-2. **Open / create** — `emacsclient -n [-c] <args>`; `-c` is added **only** when no
-   graphical frame exists yet.
-3. **Two-layer raise** (the macOS 14+ workaround):
-   - *Window layer* — `(select-frame-set-input-focus (selected-frame))` so the daemon
-     key-orders the right window.
-   - *App layer* — macOS 14+ ignores `activateIgnoringOtherApps:` for a background app,
-     so the daemon can't front itself. We do it from outside via Launch Services
-     (`/usr/bin/open -a <bundle>`), which the OS honours as a user-initiated request
-     targeting *another* app.
-4. **Exact bundle** — the activated bundle is resolved from the daemon's own
-   `invocation-directory` (this machine may host several `Emacs.app` builds sharing the
-   `org.gnu.Emacs` id, so `open -a Emacs` / `open -b` would be ambiguous).
+Both funnel into `runEmacsGui(files:)`, which does **two short socket exchanges** with
+the daemon (each is one connect → send one `\n`-terminated line → read the reply):
+1. **Probe** — one `-eval` returning `(t/nil "<bundle path>")`: whether any frame is on
+   a *graphical* display (`display-graphic-p` over `frame-list` — a daemon always keeps
+   an invisible terminal frame, so counting frames would lie), plus the daemon's own
+   `invocation-directory` for the exact bundle.
+2. **Act** — `-nowait`, then `-current-frame` (reuse) **or** `-display ns -window-system`
+   (create a graphical frame — the same thing `emacsclient -c` does on macOS, but only
+   when none exists yet), then `-file <path>` per file/URL, then an `-eval` doing the
+   *window-layer raise* `(select-frame-set-input-focus (selected-frame))`.
+
+Then the **app-layer raise** (the macOS 14+ workaround): macOS 14+ ignores
+`activateIgnoringOtherApps:` for a background app, so the daemon can't front itself. We
+do it from outside via Launch Services (`/usr/bin/open -a <bundle>`), which the OS
+honours as a user-initiated request targeting *another* app. The exact bundle comes
+from the probe's `invocation-directory` (this machine may host several `Emacs.app`
+builds sharing the `org.gnu.Emacs` id, so `open -a Emacs` / `open -b` would be
+ambiguous).
+
+The wire protocol is line-based: space-separated tokens, values `&`-quoted (leading
+`-`→`&-`, space→`&_`, newline→`&n`, `&`→`&&`); replies are `\n`-terminated
+(`-emacs-pid`, `-print`, `-error`). See `EmacsServer.swift` and Emacs
+`lib-src/emacsclient.c` for the reference.
 
 ## Invariants / gotchas — don't break these
 
-- **Use `posix_spawn`, never Foundation `Process`.** All subprocess spawns go through
-  the `spawn(_:_:capture:)` helper. Foundation `Process` measured ~66 ms/spawn vs ~7 ms
-  for `posix_spawn`; with ~4 emacsclient round-trips that was the bulk of launch
-  latency. Reintroducing `Process` will make the app feel sluggish again. See the
-  memory `foundation-process-spawn-tax`.
-- `posix_spawn_file_actions_t` is an opaque pointer typedef on Darwin — declare it
+- **Talk to Emacs over the socket, never by spawning `emacsclient`.** All daemon
+  communication goes through `EmacsServer.send` (native AF_UNIX). There is intentionally
+  no `emacsclient` binary dependency, and Foundation's `Process` is avoided everywhere
+  (~66 ms/spawn vs ~7 ms for `posix_spawn`; see memory `foundation-process-spawn-tax`).
+- **Local socket only.** `EmacsServer.socketPath()` resolves `$EMACS_SOCKET_NAME`, then
+  `$XDG_RUNTIME_DIR/emacs/server`, then `<TMPDIR>/emacs<uid>/server` (macOS `TMPDIR` via
+  `confstr(_CS_DARWIN_USER_TEMP_DIR)`, value 65537). TCP/`server-file` (remote, auth-key)
+  setups are **not** supported by design — if you add them, port `set_tcp_socket` from
+  `emacsclient.c`.
+- **Activation uses `/usr/bin/open -a <bundle>`** via `posix_spawn`, fire-and-forget —
+  the one remaining subprocess. Don't switch to `NSWorkspace.openApplication`'s
+  completion handler (blocking on it added ~200 ms and risked delaying the activation).
+  `posix_spawn_file_actions_t` is an opaque pointer typedef on Darwin — declare it
   `var actions: posix_spawn_file_actions_t?` (optional), not `= posix_spawn_file_actions_t()`.
+- **Open events are not CLI args.** Files/URLs arrive only via Launch Services'
+  `application(_:open:)`. Passing a path on the command line does **not** trigger it —
+  verify with `open -a "Emacs Client" <file>`, never `./EmacsClient <file>`.
 - **Candidate registration only.** Document types use the `Editor` role but the build
   does *not* force any default handler (no `LSSetDefaultRoleHandler`). This is
   deliberate: many emacs-plus Cellar copies ship their own `Emacs Client.app` with the
   same `org.gnu.emacsclient` id, and forcing defaults would fight them.
-- **Activation is fire-and-forget.** Don't switch back to
-  `NSWorkspace.openApplication`'s completion handler — blocking on it added ~200 ms
-  before exit and risked delaying the activation itself.
-- **emacsclient path** is `$EC` if set, else `~/.local/bin/emacsclient`. Same override
-  the build pipeline uses.
 - **Bundle id** `org.gnu.emacsclient`, executable name `EmacsClient` — must match
   `CFBundleExecutable` in `Info.plist`.
 
