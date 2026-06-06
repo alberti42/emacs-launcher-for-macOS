@@ -23,9 +23,15 @@ import Cocoa
 
 // MARK: - Core logic
 
-/// Open the given files/URLs (or just surface a frame when none are given), then
-/// perform both raise layers and terminate. Args are file paths and/or
-/// org-protocol:// URLs.
+/// A file or org-protocol:// URL to open, with an optional `+LINE[:COLUMN]` position
+/// (only ever set for command-line invocations — Launch Services carries no position).
+struct OpenTarget {
+    let arg: String
+    let position: String?
+}
+
+/// Open the given targets (or just surface a frame when none are given), then perform
+/// both raise layers and terminate.
 ///
 /// Two short socket exchanges with the daemon:
 ///   1. Ask whether a graphical frame already exists, and for the daemon's own
@@ -33,7 +39,7 @@ import Cocoa
 ///   2. Open the files / create a frame, then raise the window.
 /// A running daemon always keeps an invisible *terminal* frame around, so counting
 /// `frame-list` would lie; we ask whether any frame is on a graphical display.
-func runEmacsGui(files: [String]) {
+func runEmacsGui(targets: [OpenTarget]) {
     guard let socket = EmacsServer.socketPath() else { NSApp.terminate(nil); return }
 
     // Exchange 1: graphical-frame check + bundle path, returned as `(t/nil "PATH")`.
@@ -61,8 +67,12 @@ func runEmacsGui(files: [String]) {
         cmd += EmacsServer.token("-display", "ns")
         cmd += EmacsServer.token("-window-system")
     }
-    for file in files {
-        cmd += EmacsServer.token("-file", file)       // file paths and org-protocol:// URLs
+    for target in targets {
+        // `-position +LINE:COL` precedes its file, exactly as emacsclient sends it.
+        if let position = target.position {
+            cmd += EmacsServer.token("-position", position)
+        }
+        cmd += EmacsServer.token("-file", target.arg)   // file paths and org-protocol:// URLs
     }
     cmd += EmacsServer.token("-eval", "(select-frame-set-input-focus (selected-frame))")
     _ = EmacsServer.send(socket, cmd)
@@ -128,27 +138,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var handledOpen = false
 
     /// Finder "Open With", drag-and-drop, and org-protocol:// URLs all arrive here on
-    /// modern macOS — file URLs and scheme URLs in one unified callback.
+    /// modern macOS — file URLs and scheme URLs in one unified callback. Launch Services
+    /// carries no line/column, so positions are always nil here.
     func application(_ application: NSApplication, open urls: [URL]) {
         handledOpen = true
-        let args = urls.map { url -> String in
-            url.isFileURL ? url.path : url.absoluteString   // org-protocol://... kept verbatim
+        let targets = urls.map { url in
+            // org-protocol://... kept verbatim; file URLs become plain paths.
+            OpenTarget(arg: url.isFileURL ? url.path : url.absoluteString, position: nil)
         }
-        runEmacsGui(files: args)
+        runEmacsGui(targets: targets)
     }
 
-    /// Plain launch (Spotlight / Dock / `open -a`): if no open event arrives almost
-    /// immediately, just surface a frame. A short hop lets Launch Services deliver a
-    /// pending open event first (so we don't create an empty frame *and* open a file),
-    /// but it's kept tight because for a true bare launch this delay is pure waiting —
-    /// the user is staring at the screen until it elapses. ~60ms is below perception
-    /// yet comfortably covers the open-event race observed in practice.
+    /// Either a command-line invocation (the binary run directly with file args, e.g.
+    /// `EmacsClient +12:4 notes.org`) or a bare launch (Spotlight / Dock / `open -a`).
+    /// CLI args are handled at once; otherwise a short hop lets Launch Services deliver
+    /// a pending open event first (so we don't create an empty frame *and* open a file),
+    /// kept tight because for a true bare launch this delay is pure waiting.
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let cliTargets = parseCommandLine()
+        if !cliTargets.isEmpty {
+            handledOpen = true
+            runEmacsGui(targets: cliTargets)
+            return
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
             guard let self, !self.handledOpen else { return }
-            runEmacsGui(files: [])
+            runEmacsGui(targets: [])
         }
     }
+}
+
+/// Parse direct command-line arguments into open targets. Mirrors emacsclient's
+/// `[+LINE[:COLUMN]] FILE...` syntax: a `+12` or `+12:4` token sets the position for
+/// the file that follows. Args beginning with `-` are ignored (Launch Services / Cocoa
+/// noise such as `-psn_…` or `-NSDocumentRevisionsDebugMode`). Returns [] when the
+/// binary was launched normally (no file args) — the open-event / bare-launch paths
+/// then take over.
+func parseCommandLine() -> [OpenTarget] {
+    var targets: [OpenTarget] = []
+    var pendingPosition: String?
+    for arg in CommandLine.arguments.dropFirst() {
+        let body = arg.dropFirst()
+        if arg.hasPrefix("+"), let first = body.first, first.isNumber,
+           body.allSatisfy({ $0.isNumber || $0 == ":" }) {
+            pendingPosition = arg                     // +LINE or +LINE:COLUMN
+            continue
+        }
+        if arg.hasPrefix("-") { continue }            // skip option-looking noise
+        targets.append(OpenTarget(arg: arg, position: pendingPosition))
+        pendingPosition = nil
+    }
+    return targets
 }
 
 // MARK: - Entry point

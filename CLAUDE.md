@@ -52,13 +52,21 @@ Runs as an **`LSUIElement` / `.accessory`** app — invisible in the Dock, no me
 — that still receives open events and can activate another app. It does its one job
 and calls `NSApp.terminate`.
 
-Two entry points in `AppDelegate`:
+Three ways work arrives, all funnelling into `runEmacsGui(targets:)`:
 - `application(_:open:)` — files (Open With / drag-drop) and `org-protocol://` URLs
   arrive together in one unified callback. File URLs become paths, scheme URLs are
-  passed through verbatim.
-- `applicationDidFinishLaunching` — bare launch (Dock / Spotlight). After a short
-  ~60 ms hop (to let a pending open event win the race and avoid creating an empty
-  frame *and* opening a file), it surfaces a frame.
+  passed through verbatim. Launch Services carries no line/column, so positions are nil.
+- `applicationDidFinishLaunching` → `parseCommandLine()` — when the **binary is run
+  directly** with file args (`EmacsClient [+LINE[:COLUMN]] FILE...`), emacsclient-style.
+  A `+12:4`-type token sets the `-position` for the following file; args starting with
+  `-` are skipped (LS/Cocoa noise). This is the *only* way a path on the command line is
+  honoured — a path is invisible to the open-event path.
+- `applicationDidFinishLaunching` (no CLI args) — bare launch (Dock / Spotlight). After
+  a short ~60 ms hop (to let a pending open event win the race and avoid creating an
+  empty frame *and* opening a file), it surfaces a frame.
+
+An `OpenTarget` is `(arg, position?)`; in exchange 2 a non-nil position emits
+`-position <pos>` just before its `-file`.
 
 Both funnel into `runEmacsGui(files:)`, which does **two short socket exchanges** with
 the daemon (each is one connect → send one `\n`-terminated line → read the reply):
@@ -100,9 +108,11 @@ The wire protocol is line-based: space-separated tokens, values `&`-quoted (lead
   completion handler (blocking on it added ~200 ms and risked delaying the activation).
   `posix_spawn_file_actions_t` is an opaque pointer typedef on Darwin — declare it
   `var actions: posix_spawn_file_actions_t?` (optional), not `= posix_spawn_file_actions_t()`.
-- **Open events are not CLI args.** Files/URLs arrive only via Launch Services'
-  `application(_:open:)`. Passing a path on the command line does **not** trigger it —
-  verify with `open -a "Emacs Client" <file>`, never `./EmacsClient <file>`.
+- **Two distinct file inputs.** Launch Services `application(_:open:)` (Finder, drag,
+  `open -a`, org-protocol) carries no position. The direct-binary path
+  (`parseCommandLine`, `EmacsClient [+L[:C]] FILE…`) is the only one that reads `argv`
+  and the only one with line/column. When testing the LS path use `open -a "Emacs
+  Client" <file>`; when testing positions run the binary directly.
 - **Candidate registration only.** Document types use the `Editor` role but the build
   does *not* force any default handler (no `LSSetDefaultRoleHandler`). This is
   deliberate: many emacs-plus Cellar copies ship their own `Emacs Client.app` with the

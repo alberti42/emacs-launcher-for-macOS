@@ -58,11 +58,24 @@ APP="/Applications/Emacs Client.app" ./emacsclient-swift-build.sh
 - **Dock / Spotlight:** launch *Emacs Client* to bring Emacs forward (opening a frame if
   needed).
 - **Drag-and-drop:** drop files onto the app.
-- **Command line:**
+- **Command line (via Launch Services):**
 
   ```sh
   open -a "Emacs Client" ~/notes.org
   ```
+
+- **Command line (the binary directly), with optional line/column:** invoke the
+  executable inside the bundle and pass files as arguments. An `emacsclient`-style
+  `+LINE[:COLUMN]` token before a file jumps point there:
+
+  ```sh
+  "$HOME/Applications/Emacs Client.app/Contents/MacOS/EmacsClient" +12:4 ~/notes.org
+  ```
+
+  `+12` (line only) and plain paths work too; relative paths resolve against the
+  current directory, and you can pass several `[+POS] FILE` pairs. (Note: a file path
+  given to the **binary** is only honoured this way — passing it to `open -a` instead
+  carries no line/column, since Launch Services has no notion of one.)
 
 - **org-protocol:** links like `org-protocol://capture?...` are handed straight to Emacs.
 
