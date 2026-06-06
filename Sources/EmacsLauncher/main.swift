@@ -1,5 +1,5 @@
 //
-// Emacs Client — a compiled macOS launcher that bridges Finder / Dock / Spotlight /
+// Emacs Launcher — a compiled macOS launcher that bridges Finder / Dock / Spotlight /
 // org-protocol to a running Emacs daemon, with the macOS 14+ raise workaround applied.
 //
 // It speaks the Emacs server protocol directly over the daemon's local socket (see
@@ -150,7 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Either a command-line invocation (the binary run directly with file args, e.g.
-    /// `EmacsClient +12:4 notes.org`) or a bare launch (Spotlight / Dock / `open -a`).
+    /// `EmacsLauncher +12:4 notes.org`) or a bare launch (Spotlight / Dock / `open -a`).
     /// CLI args are handled at once; otherwise a short hop lets Launch Services deliver
     /// a pending open event first (so we don't create an empty frame *and* open a file),
     /// kept tight because for a true bare launch this delay is pure waiting.
@@ -197,17 +197,20 @@ func parseCommandLine() -> [OpenTarget] {
 func handleCLIFlags() {
     let args = CommandLine.arguments.dropFirst()
     if args.contains("-V") || args.contains("--version") {
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-        print("Emacs Client \(version)")
+        let info = Bundle.main.infoDictionary
+        let name = (info?["CFBundleDisplayName"] as? String)
+            ?? (info?["CFBundleName"] as? String) ?? "Emacs Launcher"
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        print("\(name) (\(version))")
         exit(0)
     }
     guard args.contains("-h") || args.contains("--help") else { return }
     print("""
-    Emacs Client — open files in your running Emacs daemon and bring it to the front.
+    Emacs Launcher — open files in your running Emacs daemon and bring it to the front.
 
     Usage:
-      EmacsClient [+LINE[:COLUMN]] FILE...   open FILE(s), optionally at a position
-      EmacsClient                            just raise Emacs (create a frame if none)
+      EmacsLauncher [+LINE[:COLUMN]] FILE...   open FILE(s), optionally at a position
+      EmacsLauncher                            just raise Emacs (create a frame if none)
 
     Files (and org-protocol:// URLs) are sent to the Emacs server over its local
     socket; Emacs is then activated via Launch Services. Relative paths resolve

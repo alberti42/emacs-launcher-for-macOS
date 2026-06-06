@@ -1,26 +1,30 @@
-# Emacs Client — macOS launcher app
+# Emacs Launcher — macOS launcher app
 
-A small compiled macOS app (**"Emacs Client.app"**) that bridges Finder / Dock /
-Spotlight / drag-and-drop / `org-protocol://` to a running **Emacs daemon**, applying
-the macOS 14+ foreground-activation workaround so Emacs actually comes to the front.
-It registers the relevant document types and the `org-protocol` URL scheme with Launch
-Services.
+A small compiled macOS app (**"Emacs Launcher.app"**) that bridges Finder / Dock /
+Spotlight / drag-and-drop / `org-protocol://` to a running **Emacs daemon**
+(`emacs --daemon`), applying the macOS 14+ foreground-activation workaround so Emacs
+actually comes to the front. It registers the relevant document types and the
+`org-protocol` URL scheme with Launch Services.
 
 It speaks the **Emacs server protocol directly over the daemon's local Unix socket**
-(`Sources/EmacsClient/EmacsServer.swift`) — there is **no dependency on an `emacsclient`
-binary**. It started as a native Swift port of an `emacsgui` zsh script (inspired by the
-emacs-plus project); the shell script and AppleScript applet are no longer part of this
-repo — the Swift app is the single deliverable.
+(`Sources/EmacsLauncher/EmacsServer.swift`) — there is **no dependency on an
+`emacsclient` binary**. It started as a native Swift port of an `emacsgui` zsh script
+(inspired by the emacs-plus project); the shell script and AppleScript applet are no
+longer part of this repo — the Swift app is the single deliverable.
+
+It is intentionally distinct from emacs-plus's own **"Emacs Client.app"** — different
+name *and* bundle id (`io.alberti42.EmacsLauncher`, not `org.gnu.emacsclient`) —
+so the two coexist and a user can keep both.
 
 ## Layout
 
 | Path | Role |
 |------|------|
-| `Sources/EmacsClient/main.swift` | App lifecycle, open-event handling, the two-exchange flow, activation. |
-| `Sources/EmacsClient/EmacsServer.swift` | Native Emacs server-protocol client: socket-path resolution, `&`-quoting, send/parse. |
-| `Package.swift` | SwiftPM executable target `EmacsClient` (macOS 12+). |
+| `Sources/EmacsLauncher/main.swift` | App lifecycle, open-event / CLI handling, the two-exchange flow, activation. |
+| `Sources/EmacsLauncher/EmacsServer.swift` | Native Emacs server-protocol client: socket-path resolution, `&`-quoting, send/parse. |
+| `Package.swift` | SwiftPM executable target `EmacsLauncher` (macOS 12+). |
 | `Info.plist` | Static bundle plist: UTIs, document types, `org-protocol` scheme, `LSUIElement`. Copied verbatim into the bundle. |
-| `emacsclient-swift-build.sh` | Build + bundle + sign + register. The only build entry point. |
+| `emacs-launcher-build.sh` | Build + bundle + sign + register. The only build entry point. |
 | `Assets.car` | Tahoe (macOS 26+) app icon (the emacs-plus "dragon"). |
 
 SwiftPM produces only a bare executable; the `.app` bundle is assembled by the build
@@ -29,11 +33,11 @@ script (Info.plist + icon + `lsregister`).
 ## Build & install
 
 ```sh
-./emacsclient-swift-build.sh
+./emacs-launcher-build.sh
 ```
 
-Installs to `~/Applications/Emacs Client.app` and registers it. Re-run after editing
-`main.swift` or `Info.plist`. Useful overrides:
+Installs to `~/Applications/Emacs Launcher.app` and registers it. Re-run after editing
+the Swift sources or `Info.plist`. Useful overrides:
 
 - `APP=...` — target bundle path (for side-by-side testing).
 - `CONFIG=debug` — debug build (default `release`).
@@ -42,7 +46,7 @@ Installs to `~/Applications/Emacs Client.app` and registers it. Re-run after edi
 Quick compile check without bundling: `swift build -c release`.
 
 There is no test suite. To verify behavior, launch it:
-`open -a "$HOME/Applications/Emacs Client.app" somefile.org`, or right-click a file →
+`open -a "$HOME/Applications/Emacs Launcher.app" somefile.org`, or right-click a file →
 Open With. Note it talks to your Emacs daemon and steals focus, so it's disruptive to
 run in a loop.
 
@@ -52,12 +56,16 @@ Runs as an **`LSUIElement` / `.accessory`** app — invisible in the Dock, no me
 — that still receives open events and can activate another app. It does its one job
 and calls `NSApp.terminate`.
 
+`handleCLIFlags()` runs first in the entry point, *before* `NSApplication`: it prints
+help/version to stdout and `exit`s for the exact tokens `-h`/`--help`/`-V`/`--version`
+(exact-match only, so LS noise never trips it) — no AppKit, no Emacs contact.
+
 Three ways work arrives, all funnelling into `runEmacsGui(targets:)`:
 - `application(_:open:)` — files (Open With / drag-drop) and `org-protocol://` URLs
   arrive together in one unified callback. File URLs become paths, scheme URLs are
   passed through verbatim. Launch Services carries no line/column, so positions are nil.
 - `applicationDidFinishLaunching` → `parseCommandLine()` — when the **binary is run
-  directly** with file args (`EmacsClient [+LINE[:COLUMN]] FILE...`), emacsclient-style.
+  directly** with file args (`EmacsLauncher [+LINE[:COLUMN]] FILE...`), emacsclient-style.
   A `+12:4`-type token sets the `-position` for the following file; args starting with
   `-` are skipped (LS/Cocoa noise). This is the *only* way a path on the command line is
   honoured — a path is invisible to the open-event path.
@@ -65,23 +73,18 @@ Three ways work arrives, all funnelling into `runEmacsGui(targets:)`:
   a short ~60 ms hop (to let a pending open event win the race and avoid creating an
   empty frame *and* opening a file), it surfaces a frame.
 
-An `OpenTarget` is `(arg, position?)`; in exchange 2 a non-nil position emits
-`-position <pos>` just before its `-file`.
-
-`handleCLIFlags()` runs first in the entry point, *before* `NSApplication`: it prints
-help/version to stdout and `exit`s for the exact tokens `-h`/`--help`/`-V`/`--version`
-(exact-match only, so LS noise never trips it) — no AppKit, no Emacs contact.
-
-Both funnel into `runEmacsGui(files:)`, which does **two short socket exchanges** with
-the daemon (each is one connect → send one `\n`-terminated line → read the reply):
+An `OpenTarget` is `(arg, position?)`. `runEmacsGui(targets:)` does **two short socket
+exchanges** with the daemon (each is one connect → send one `\n`-terminated line → read
+the reply):
 1. **Probe** — one `-eval` returning `(t/nil "<bundle path>")`: whether any frame is on
    a *graphical* display (`display-graphic-p` over `frame-list` — a daemon always keeps
    an invisible terminal frame, so counting frames would lie), plus the daemon's own
    `invocation-directory` for the exact bundle.
 2. **Act** — `-nowait`, then `-current-frame` (reuse) **or** `-display ns -window-system`
    (create a graphical frame — the same thing `emacsclient -c` does on macOS, but only
-   when none exists yet), then `-file <path>` per file/URL, then an `-eval` doing the
-   *window-layer raise* `(select-frame-set-input-focus (selected-frame))`.
+   when none exists yet), then (per target) an optional `-position <pos>` and `-file
+   <path>`, then an `-eval` doing the *window-layer raise*
+   `(select-frame-set-input-focus (selected-frame))`.
 
 Then the **app-layer raise** (the macOS 14+ workaround): macOS 14+ ignores
 `activateIgnoringOtherApps:` for a background app, so the daemon can't front itself. We
@@ -114,21 +117,25 @@ The wire protocol is line-based: space-separated tokens, values `&`-quoted (lead
   `var actions: posix_spawn_file_actions_t?` (optional), not `= posix_spawn_file_actions_t()`.
 - **Two distinct file inputs.** Launch Services `application(_:open:)` (Finder, drag,
   `open -a`, org-protocol) carries no position. The direct-binary path
-  (`parseCommandLine`, `EmacsClient [+L[:C]] FILE…`) is the only one that reads `argv`
+  (`parseCommandLine`, `EmacsLauncher [+L[:C]] FILE…`) is the only one that reads `argv`
   and the only one with line/column. When testing the LS path use `open -a "Emacs
-  Client" <file>`; when testing positions run the binary directly.
+  Launcher" <file>`; when testing positions run the binary directly.
+- **Distinct identity from emacs-plus.** Name **"Emacs Launcher"**, bundle id
+  **`io.alberti42.EmacsLauncher`**, executable **`EmacsLauncher`** (must match
+  `CFBundleExecutable` in `Info.plist` and the SwiftPM target). Do *not* revert to
+  `org.gnu.emacsclient` / "Emacs Client" — that's emacs-plus's bundle and the whole
+  point of the rename was to stop colliding with it.
 - **Candidate registration only.** Document types use the `Editor` role but the build
-  does *not* force any default handler (no `LSSetDefaultRoleHandler`). This is
-  deliberate: many emacs-plus Cellar copies ship their own `Emacs Client.app` with the
-  same `org.gnu.emacsclient` id, and forcing defaults would fight them.
-- **Bundle id** `org.gnu.emacsclient`, executable name `EmacsClient` — must match
-  `CFBundleExecutable` in `Info.plist`.
+  does *not* force any default handler (no `LSSetDefaultRoleHandler`) — we appear in
+  "Open With" without hijacking the user's existing defaults.
 
 ## File-type registration (Info.plist)
 
 - **Custom imported UTIs** for Emacs types the system doesn't know by extension:
   `org.gnu.emacs.org-mode` (`.org`, `.org_archive`), `…emacs-lisp-source` (`.el`),
-  `…lisp-data` (`.eld`), `…texinfo-source` (`.texi`, `.texinfo`).
+  `…lisp-data` (`.eld`), `…texinfo-source` (`.texi`, `.texinfo`). These are *imported*
+  declarations of types Emacs owns, so the `org.gnu.emacs.*` namespace is appropriate
+  here (unrelated to the app's own bundle id).
 - **Markdown** (`net.daringfireball.markdown`, `public.markdown`).
 - **Broad catch-all** (`public.text`, `public.plain-text`, `public.source-code`,
   scripts, xml/json, `public.data`) so any plain-text/source file is still covered.

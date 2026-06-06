@@ -1,8 +1,8 @@
-# Emacs Client
+# Emacs Launcher
 
-A small, fast macOS app that opens files in your running **Emacs daemon** and brings
-Emacs to the front — from Finder, the Dock, Spotlight, drag-and-drop, or
-`org-protocol://` links.
+A small, fast macOS app that opens files in your running **Emacs daemon**
+(`emacs --daemon`) and brings Emacs to the front — from Finder, the Dock, Spotlight,
+drag-and-drop, or `org-protocol://` links.
 
 It's a compiled Swift launcher (inspired by [emacs-plus]) that talks to the Emacs
 daemon **directly over its local socket** — no `emacsclient` binary required — and
@@ -13,7 +13,7 @@ from coming to the foreground.
 
 ## Features
 
-- **Open With → Emacs Client** in Finder for text, source, Org, Emacs Lisp, Markdown,
+- **Open With → Emacs Launcher** in Finder for text, source, Org, Emacs Lisp, Markdown,
   and more — files open in your existing Emacs frame.
 - **Reuses your frame** instead of spawning a new one; creates a frame only when none
   exists yet.
@@ -39,29 +39,29 @@ emacs --daemon
 ## Install
 
 ```sh
-./emacsclient-swift-build.sh
+./emacs-launcher-build.sh
 ```
 
-This compiles the app, assembles **`~/Applications/Emacs Client.app`**, and registers
+This compiles the app, assembles **`~/Applications/Emacs Launcher.app`**, and registers
 it with macOS. Re-run it after pulling updates.
 
 To install somewhere else:
 
 ```sh
-APP="/Applications/Emacs Client.app" ./emacsclient-swift-build.sh
+APP="/Applications/Emacs Launcher.app" ./emacs-launcher-build.sh
 ```
 
 ## Usage
 
-- **Finder:** right-click a file → *Open With* → *Emacs Client*. To make it the default
+- **Finder:** right-click a file → *Open With* → *Emacs Launcher*. To make it the default
   for a given type, use *Get Info* → *Open with* → *Change All…*
-- **Dock / Spotlight:** launch *Emacs Client* to bring Emacs forward (opening a frame if
+- **Dock / Spotlight:** launch *Emacs Launcher* to bring Emacs forward (opening a frame if
   needed).
 - **Drag-and-drop:** drop files onto the app.
 - **Command line (via Launch Services):**
 
   ```sh
-  open -a "Emacs Client" ~/notes.org
+  open -a "Emacs Launcher" ~/notes.org
   ```
 
 - **Command line (the binary directly), with optional line/column:** invoke the
@@ -69,7 +69,7 @@ APP="/Applications/Emacs Client.app" ./emacsclient-swift-build.sh
   `+LINE[:COLUMN]` token before a file jumps point there:
 
   ```sh
-  "$HOME/Applications/Emacs Client.app/Contents/MacOS/EmacsClient" +12:4 ~/notes.org
+  "$HOME/Applications/Emacs Launcher.app/Contents/MacOS/EmacsLauncher" +12:4 ~/notes.org
   ```
 
   `+12` (line only) and plain paths work too; relative paths resolve against the
@@ -95,7 +95,7 @@ script, XML, and JSON files.
 | Variable | Used by | Meaning |
 |----------|---------|---------|
 | `EMACS_SOCKET_NAME` | the app at runtime | Override the daemon socket (path, or a `server-name`). Defaults to the standard local socket. |
-| `APP` | the build script | Where to install the `.app` (default `~/Applications/Emacs Client.app`). |
+| `APP` | the build script | Where to install the `.app` (default `~/Applications/Emacs Launcher.app`). |
 | `CONFIG` | the build script | `release` (default) or `debug`. |
 | `ICON_SRC` | the build script | Optional `.icns` for macOS versions before 26. |
 
@@ -105,11 +105,12 @@ script, XML, and JSON files.
   listening on its default local socket (`emacsclient -e t` should print `t`, or check
   for `$TMPDIR/emacs<uid>/server`). If you use a non-default socket, set
   `EMACS_SOCKET_NAME`.
-- **It doesn't appear under "Open With".** Re-run `./emacsclient-swift-build.sh` (it
+- **It doesn't appear under "Open With".** Re-run `./emacs-launcher-build.sh` (it
   re-registers with Launch Services). If macOS is still confused, log out and back in.
-- **The wrong "Emacs Client" opens.** Some Emacs distributions (e.g. emacs-plus) ship
-  their own `Emacs Client.app`. Remove the copies you don't want, then re-run the build
-  script.
+- **Coexisting with emacs-plus.** emacs-plus ships its own separate `Emacs Client.app`;
+  this app is **Emacs Launcher** with its own bundle id, so the two don't clash and you
+  can keep both. Just pick *Emacs Launcher* in *Open With* / *Change All…* if you want
+  this one to handle a file type.
 - **Emacs comes up but doesn't take focus.** This is exactly the macOS 14+ case the app
   handles via Launch Services; confirm you launched *this* app and not a stale copy.
 

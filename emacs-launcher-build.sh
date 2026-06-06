@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
 #
-# Build "Emacs Client.app" from the Swift launcher (Sources/EmacsClient).
+# Build "Emacs Launcher.app" from the Swift sources (Sources/EmacsLauncher).
 #
-# Unlike emacsgui-build.sh (which compiles the AppleScript applet), this produces a
-# real compiled Cocoa app: SwiftPM builds the executable, then we assemble the .app
-# bundle around a static Info.plist, install the dragon Assets.car icon, and register
-# the file-type / org-protocol associations with Launch Services.
-#
-# The Swift launcher reimplements the emacsgui logic natively, so no shell script is
-# shipped inside the bundle. Re-run after editing main.swift or Info.plist.
+# SwiftPM builds the executable, then we assemble the .app bundle around a static
+# Info.plist, install the dragon Assets.car icon, and register the file-type /
+# org-protocol associations with Launch Services. Re-run after editing the Swift
+# sources or Info.plist.
 
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
-APP="${APP:-$HOME/Applications/Emacs Client.app}"   # overridable (e.g. for side-by-side testing)
+APP="${APP:-$HOME/Applications/Emacs Launcher.app}"   # overridable (e.g. for side-by-side testing)
 CONFIG="${CONFIG:-release}"
 PLIST_SRC="$SRC_DIR/Info.plist"
 ASSETS_SRC="$SRC_DIR/Assets.car"
@@ -21,15 +18,15 @@ ASSETS_SRC="$SRC_DIR/Assets.car"
 
 echo "==> Building Swift executable ($CONFIG)"
 swift build --package-path "$SRC_DIR" -c "$CONFIG"
-BIN="$(swift build --package-path "$SRC_DIR" -c "$CONFIG" --show-bin-path)/EmacsClient"
+BIN="$(swift build --package-path "$SRC_DIR" -c "$CONFIG" --show-bin-path)/EmacsLauncher"
 [[ -x "$BIN" ]] || { echo "!! build produced no executable at $BIN" >&2; exit 1; }
 
 echo "==> Assembling bundle: $APP"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-cp "$BIN" "$APP/Contents/MacOS/EmacsClient"          # must match CFBundleExecutable
-chmod +x "$APP/Contents/MacOS/EmacsClient"
+cp "$BIN" "$APP/Contents/MacOS/EmacsLauncher"        # must match CFBundleExecutable
+chmod +x "$APP/Contents/MacOS/EmacsLauncher"
 cp "$PLIST_SRC" "$APP/Contents/Info.plist"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 

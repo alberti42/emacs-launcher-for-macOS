@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Info.plist for "Emacs Client.app".
+  Info.plist for "Emacs Launcher.app".
 
-  Static template copied verbatim by emacsclient-swift-build.sh. It declares:
+  Static template copied verbatim by emacs-launcher-build.sh. It declares:
     * the org-protocol:// URL scheme               (CFBundleURLTypes)
     * Emacs-specific imported UTIs for .org/.el/.eld/.texi  (UTImportedTypeDeclarations)
     * document types: the custom UTIs, a broad text/source catch-all, and Markdown
@@ -19,19 +19,19 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>Emacs Client</string>
+    <string>Emacs Launcher</string>
     <key>CFBundleDisplayName</key>
-    <string>Emacs Client</string>
+    <string>Emacs Launcher</string>
     <key>CFBundleIdentifier</key>
-    <string>org.gnu.emacsclient</string>
+    <string>io.alberti42.EmacsLauncher</string>
     <key>CFBundleExecutable</key>
-    <string>EmacsClient</string>
+    <string>EmacsLauncher</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>0.1.0</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
