@@ -499,6 +499,24 @@ func parseCommandLine() -> [OpenTarget] {
 /// mistaken for a flag. Returns normally when no such flag is present.
 func handleCLIFlags() {
     let args = CommandLine.arguments.dropFirst()
+    // Emit the recent files as a JSON array ([{title, subtitle, path}, …]), filtered to
+    // existing files under $HOME. Sourced from the live daemon list (with the .eld
+    // fallback), so third-party scripts (e.g. LaunchBar) can call this binary instead of
+    // parsing recentf themselves.
+    if args.contains("--recentf") {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let items: [[String: String]] = RecentFiles.localPaths()
+            .filter { $0.hasPrefix(home + "/") }
+            .map { path in
+                let url = URL(fileURLWithPath: path)
+                return ["title": url.lastPathComponent,
+                        "subtitle": url.deletingLastPathComponent().path,
+                        "path": path]
+            }
+        let data = (try? JSONSerialization.data(withJSONObject: items)) ?? Data("[]".utf8)
+        print(String(decoding: data, as: UTF8.self))
+        exit(0)
+    }
     // Undocumented developer aid: print the resolved recent-files source and list, then
     // exit. Verifies the daemon probe and the .eld fallback without launching the GUI.
     if args.contains("--print-recent") {
@@ -549,6 +567,9 @@ func handleCLIFlags() {
     Options:
       -h, --help       show this help and exit
       -V, --version    show version and exit
+      --recentf        print recent files as JSON ([{title, subtitle, path}, …],
+                       existing files under $HOME) — for third-party scripts
+                       (e.g. LaunchBar)
 
     Environment:
       EMACS_SOCKET_NAME   override the daemon socket (a path, or a server-name)
