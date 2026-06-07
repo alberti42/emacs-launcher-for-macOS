@@ -180,7 +180,7 @@ func reportFailure(_ message: String, _ detail: String) {
     if !launchedFromCommandLine {
         NSApp.setActivationPolicy(.regular)        // so the alert can come to the front
         NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
+        let alert = makeWideAlert()
         alert.messageText = message
         alert.informativeText = detail
         alert.alertStyle = .warning
@@ -205,9 +205,18 @@ func launchAgentDestination() -> URL {
         .appendingPathComponent("Library/LaunchAgents/\(launchAgentName)")
 }
 
+/// An NSAlert sizes itself to its text, which is uncomfortably narrow for our file
+/// paths and socket strings. A fixed-width (zero-height) spacer accessory forces the
+/// dialog wider. Use this instead of `NSAlert()` for every alert we show.
+func makeWideAlert(width: CGFloat = 460) -> NSAlert {
+    let alert = NSAlert()
+    alert.accessoryView = NSView(frame: NSRect(x: 0, y: 0, width: width, height: 0))
+    return alert
+}
+
 /// Show a simple informational alert (assumes activation policy is already `.regular`).
 func infoAlert(_ message: String, _ detail: String) {
-    let alert = NSAlert()
+    let alert = makeWideAlert()
     alert.messageText = message
     alert.informativeText = detail
     alert.alertStyle = .informational
@@ -238,7 +247,7 @@ func handleNoDaemon(socket: String, targets: [OpenTarget]) {
     }
 
     alreadyOfferedInstall = true
-    let alert = NSAlert()
+    let alert = makeWideAlert()
     alert.messageText = "Can't reach the Emacs server."
     alert.informativeText =
         "No Emacs daemon is responding on:\n  \(socket)\n\n"
@@ -307,7 +316,7 @@ func showLaunchAgentPanel() {
     let reachable = EmacsServer.socketPath().map(EmacsServer.isReachable) ?? false
     let status = reachable ? "the daemon is running" : "no daemon is responding"
 
-    let alert = NSAlert()
+    let alert = makeWideAlert()
     alert.alertStyle = .informational
     if installed {
         alert.messageText = "Emacs daemon LaunchAgent is installed."
