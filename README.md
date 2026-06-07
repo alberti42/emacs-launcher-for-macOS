@@ -196,7 +196,7 @@ It has three sections:
 
 - **Emacs daemon LaunchAgent** — install a LaunchAgent so an Emacs daemon starts at login and is restarted if it ever exits, or uninstall it if it's already there. See [Keeping a daemon running](#keeping-a-daemon-running-launchagent).
 - **Recent files for Spotlight** — turn Spotlight indexing of your recent files on or off. The `recentf` file is detected automatically from the running daemon; you can point at a specific file with **Choose Override…**, or return to the detected one with **Use Detected**.
-- **Background activation** — explains that the app stays resident after the first launch for faster response, with **Kill Emacs Launcher** to stop the running process and **Done** to close the panel.
+- **Background activation** — a switch to keep the app resident after the first launch (*warm start*, recommended) for faster response, or turn it off for a *cold start* where the app quits after each use. **Kill Emacs Launcher** stops the running process (disabled in cold-start mode, where there's nothing to stop), and **Done** closes the panel.
 
 ## Linking to a file (`emacs://` scheme)
 
@@ -313,7 +313,7 @@ Emacs normally runs as a background **daemon** (`emacs --daemon`): one long-live
 
   It activates the **exact** Emacs app bundle the daemon is running from — which it asks the daemon to report — in case you have more than one `Emacs.app` build installed.
 
-**5. It stays ready.** Emacs Launcher runs as an *accessory* app: no Dock icon, no menu bar. After the first launch it simply stays resident in memory rather than quitting, so later requests are faster. The per-platform compiled executable is just ~250 kB; resident, the process uses around **~10 MB** of memory — almost all of which is the AppKit framework any such app links, not the app's own code. That first cold start takes roughly **250 ms**; every later request — handled by the already-running process — completes in about **100 ms**. All you see is Emacs coming to the front. (To stop the resident process, open the [settings panel](#settings-panel) and choose *Kill Emacs Launcher*.)
+**5. It stays ready.** Emacs Launcher runs as an *accessory* app: no Dock icon, no menu bar. After the first launch it simply stays resident in memory rather than quitting, so later requests are faster. The per-platform compiled executable is just ~250 kB; resident, the process uses around **~10 MB** of memory — almost all of which is the AppKit framework any such app links, not the app's own code. That first cold start takes roughly **250 ms**; every later request — handled by the already-running process — completes in about **100 ms**. All you see is Emacs coming to the front. (Prefer the old behaviour? The [settings panel](#settings-panel) has a switch to turn off warm start and quit after each use; while resident, the same panel's *Kill Emacs Launcher* stops the process.)
 
 ## Icon
 

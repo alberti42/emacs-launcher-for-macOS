@@ -40,6 +40,17 @@ struct OpenTarget {
     let position: String?
 }
 
+/// UserDefaults key: keep the app resident (warm start) after a GUI launch. Absent ⇒ on.
+let residentModeKey = "ResidentMode"
+
+/// Whether the app stays resident after a GUI launch (warm start, the default and
+/// recommended mode). Users can opt into a cold start — quit after each use — from the
+/// settings panel.
+var residentModeEnabled: Bool {
+    UserDefaults.standard.object(forKey: residentModeKey) == nil
+        || UserDefaults.standard.bool(forKey: residentModeKey)
+}
+
 /// End-of-work disposition. Direct-CLI invocations (`EmacsLauncher file…`) are one-shot
 /// and must `terminate` so they don't hang a script. Launch Services / GUI launches
 /// instead stay **resident**: the process keeps running so the next Finder / Dock /
@@ -49,7 +60,7 @@ struct OpenTarget {
 /// switched us to `.regular` to front a modal — drop back to `.accessory` so the
 /// resident process is invisible again.
 func finish() {
-    if launchedFromCommandLine {
+    if launchedFromCommandLine || !residentModeEnabled {
         NSApp.terminate(nil)
     } else if NSApp.activationPolicy() != .accessory {
         NSApp.setActivationPolicy(.accessory)
@@ -395,6 +406,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// a timer. Not called for one-shot CLI runs, which terminate immediately.
     private func startSpotlightMaintenance() {
         SpotlightIndex.reindex()
+        // The periodic refresh only makes sense while the app stays resident.
+        guard residentModeEnabled else { return }
         reindexTimer = Timer.scheduledTimer(withTimeInterval: reindexInterval, repeats: true) { _ in
             SpotlightIndex.reindex()
         }

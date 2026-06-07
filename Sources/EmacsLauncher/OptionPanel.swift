@@ -26,6 +26,7 @@ final class OptionPanelController: NSObject, NSWindowDelegate {
     private var agentButton: NSButton!
     private var recentPathField: NSTextField!
     private var useDetectedButton: NSButton!
+    private var killButton: NSButton!
 
     /// Strong self-reference held for the lifetime of the modal so the controller isn't
     /// deallocated while its window is on screen.
@@ -117,7 +118,12 @@ final class OptionPanelController: NSObject, NSWindowDelegate {
             extras: [spotlightToggle, recentButtons, recentPathField])
 
         // — Section 3: background activation + Done / Kill ————————————————
-        let killButton = makeButton("Kill Emacs Launcher", #selector(killLauncher))
+        let warmStartToggle = NSButton(checkboxWithTitle: "Keep running in the background (recommended)",
+                                       target: self, action: #selector(toggleWarmStart))
+        warmStartToggle.state = residentModeEnabled ? .on : .off
+
+        killButton = makeButton("Kill Emacs Launcher", #selector(killLauncher))
+        killButton.isEnabled = residentModeEnabled       // nothing to kill in cold-start mode
         let doneButton = makeButton("Done", #selector(done), key: "\r")
         let buttonRow = NSStackView(views: [flexibleSpacer(), killButton, doneButton])
         buttonRow.orientation = .horizontal
@@ -125,12 +131,13 @@ final class OptionPanelController: NSObject, NSWindowDelegate {
 
         let residencySection = section(
             header: "Background Activation",
-            body: "After its first launch, Emacs Launcher stays running in the background. "
-                + "Its memory footprint is tiny, and staying resident lets it respond "
-                + "instantly to Finder, Dock, Spotlight, and org-protocol requests instead "
-                + "of paying a cold start each time. Kill Emacs Launcher stops it; it will "
-                + "start again the next time something opens a file.",
-            extras: [buttonRow])
+            body: "After its first launch, Emacs Launcher can stay resident in the background "
+                + "(warm start) so it responds instantly to Finder, Dock, Spotlight, and "
+                + "org-protocol requests instead of paying a cold start each time; its memory "
+                + "footprint is tiny (~10 MB, mostly the AppKit framework). This is "
+                + "recommended. Turn it off for a cold start — the app quits after each use, "
+                + "and Kill Emacs Launcher then has nothing to stop.",
+            extras: [warmStartToggle, buttonRow])
 
         // Assemble with separators between sections.
         for (index, element) in [agentSection, recentSection, residencySection].enumerated() {
@@ -209,6 +216,15 @@ final class OptionPanelController: NSObject, NSWindowDelegate {
     /// Turn Spotlight indexing on (reindex now) or off (clear our items).
     @objc private func toggleSpotlight(_ sender: NSButton) {
         SpotlightIndex.setEnabled(sender.state == .on)
+    }
+
+    /// Turn warm start (resident) on or off. The change takes effect when the panel closes
+    /// (`finish()` keeps the app alive or quits accordingly). With it off there's nothing
+    /// for Kill Emacs Launcher to act on, so disable that button.
+    @objc private func toggleWarmStart(_ sender: NSButton) {
+        let on = sender.state == .on
+        UserDefaults.standard.set(on, forKey: residentModeKey)
+        killButton.isEnabled = on
     }
 
     /// Clear the override and go back to the auto-detected path.
