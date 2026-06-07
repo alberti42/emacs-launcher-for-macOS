@@ -40,8 +40,24 @@ struct OpenTarget {
     let position: String?
 }
 
+/// End-of-work disposition. Direct-CLI invocations (`EmacsLauncher file…`) are one-shot
+/// and must `terminate` so they don't hang a script. Launch Services / GUI launches
+/// instead stay **resident**: the process keeps running so the next Finder / Dock /
+/// Spotlight / org-protocol / `emacs://` event lands in `application(_:open:)` on the
+/// live process, skipping the cold start (spawn + dyld + AppKit init). We're an
+/// `.accessory` app, so staying resident shows no Dock icon. A failure path may have
+/// switched us to `.regular` to front a modal — drop back to `.accessory` so the
+/// resident process is invisible again.
+func finish() {
+    if launchedFromCommandLine {
+        NSApp.terminate(nil)
+    } else if NSApp.activationPolicy() != .accessory {
+        NSApp.setActivationPolicy(.accessory)
+    }
+}
+
 /// Open the given targets (or just surface a frame when none are given), then perform
-/// both raise layers and terminate.
+/// both raise layers and `finish()` (stay resident for GUI launches, terminate for CLI).
 ///
 /// Two short socket exchanges with the daemon:
 ///   1. Ask whether a graphical frame already exists, and for the daemon's own
@@ -97,9 +113,10 @@ func runEmacsGui(targets: [OpenTarget]) {
     // ambiguous).
     activateEmacsBundle(bundlePath)
 
-    // One job done — quit immediately. We're already on the main thread here (invoked
-    // from a delegate callback), so this is the last thing the process does.
-    NSApp.terminate(nil)
+    // One job done. We're already on the main thread here (invoked from a delegate
+    // callback). For a one-shot CLI run this terminates; for a GUI launch it stays
+    // resident, ready for the next event.
+    finish()
 }
 
 /// The `-dir <cwd>/` directive every exchange opens with, matching emacsclient: the
@@ -186,7 +203,7 @@ func reportFailure(_ message: String, _ detail: String) {
         alert.alertStyle = .warning
         alert.runModal()
     }
-    NSApp.terminate(nil)
+    finish()
 }
 
 // MARK: - Daemon-unreachable handling (offer to install the LaunchAgent)
@@ -231,7 +248,7 @@ func handleNoDaemon(socket: String, targets: [OpenTarget]) {
     FileHandle.standardError.write(Data(
         ("Can't reach the Emacs server (socket: \(socket)). "
          + "Start the daemon with \"emacs --daemon\".\n").utf8))
-    if launchedFromCommandLine { NSApp.terminate(nil); return }
+    if launchedFromCommandLine { finish(); return }
 
     NSApp.setActivationPolicy(.regular)
     NSApp.activate(ignoringOtherApps: true)
@@ -242,7 +259,7 @@ func handleNoDaemon(socket: String, targets: [OpenTarget]) {
                   "No daemon is responding on:\n  \(socket)\n\n"
                   + "The daemon LaunchAgent is installed; it may still be starting — try "
                   + "again in a moment, or run \"emacs --daemon\".")
-        NSApp.terminate(nil)
+        finish()
         return
     }
 
@@ -257,10 +274,10 @@ func handleNoDaemon(socket: String, targets: [OpenTarget]) {
     alert.alertStyle = .warning
     alert.addButton(withTitle: "Install LaunchAgent")
     alert.addButton(withTitle: "Not Now")
-    guard alert.runModal() == .alertFirstButtonReturn else { NSApp.terminate(nil); return }
+    guard alert.runModal() == .alertFirstButtonReturn else { finish(); return }
 
     let (ok, message) = installLaunchAgent()
-    guard ok else { infoAlert("Couldn't install the LaunchAgent.", message); NSApp.terminate(nil); return }
+    guard ok else { infoAlert("Couldn't install the LaunchAgent.", message); finish(); return }
 
     // Daemon is starting (RunAtLoad). Wait for it, then retry the original open.
     if waitForDaemon(socket, timeout: 8) {
@@ -268,7 +285,7 @@ func handleNoDaemon(socket: String, targets: [OpenTarget]) {
     } else {
         infoAlert("LaunchAgent installed.",
                   "\(message)\nThe Emacs daemon is still starting — try again in a moment.")
-        NSApp.terminate(nil)
+        finish()
     }
 }
 
@@ -332,46 +349,13 @@ func waitForDaemon(_ socket: String, timeout: TimeInterval) -> Bool {
     return false
 }
 
-/// The deliberate LaunchAgent panel, shown when the app is launched with Option held (a
-/// bare double-click in Finder / Dock). Offers Install if the agent isn't present, or
-/// Uninstall if it is. Always terminates.
+/// The deliberate ⌥-Option panel, shown when the app is launched with Option held (a
+/// bare double-click in Finder / Dock) or re-activated with Option while resident. Its
+/// multi-section UI (LaunchAgent install/uninstall, recent-files source, background-
+/// activation info with Done / Kill) lives in `OptionPanelController`, which handles its
+/// own activation-policy flip and `finish()`.
 func showLaunchAgentPanel() {
-    NSApp.setActivationPolicy(.regular)
-    NSApp.activate(ignoringOtherApps: true)
-
-    let dst = launchAgentDestination()
-    let installed = FileManager.default.fileExists(atPath: dst.path)
-    let reachable = EmacsServer.socketPath().map(EmacsServer.isReachable) ?? false
-    let status = reachable ? "the daemon is running" : "no daemon is responding"
-
-    let alert = makeWideAlert()
-    alert.alertStyle = .informational
-    if installed {
-        alert.messageText = "Emacs daemon LaunchAgent is installed."
-        alert.informativeText =
-            "It starts an Emacs daemon at login and restarts it if it exits "
-            + "(currently \(status)).\n\nUninstalling removes it and stops the running "
-            + "daemon — unsaved buffers would be lost.\n\n\(dst.path)"
-        alert.addButton(withTitle: "Uninstall")
-        alert.addButton(withTitle: "Done")
-        if alert.runModal() == .alertFirstButtonReturn {
-            let (ok, message) = uninstallLaunchAgent()
-            infoAlert(ok ? "Uninstalled the LaunchAgent." : "Couldn't uninstall.", message)
-        }
-    } else {
-        alert.messageText = "Install the Emacs daemon LaunchAgent?"
-        alert.informativeText =
-            "It starts an Emacs daemon at login and restarts it if it exits, so Emacs "
-            + "Launcher always has a daemon to talk to. Installs to ~/Library/LaunchAgents "
-            + "and loads it now. (Currently \(status).)"
-        alert.addButton(withTitle: "Install")
-        alert.addButton(withTitle: "Cancel")
-        if alert.runModal() == .alertFirstButtonReturn {
-            let (ok, message) = installLaunchAgent()
-            infoAlert(ok ? "Installed the LaunchAgent." : "Couldn't install.", message)
-        }
-    }
-    NSApp.terminate(nil)
+    OptionPanelController().show()
 }
 
 /// `launchctl bootout` the agent and remove its plist. (Booting it out stops the daemon
@@ -400,6 +384,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `org-protocol://` URLs all arrive here on modern macOS, in one unified callback.
     func application(_ application: NSApplication, open urls: [URL]) {
         handledOpen = true
+        alreadyOfferedInstall = false        // fresh event: allow the install offer again
         let targets: [OpenTarget] = urls.compactMap { url in
             if url.scheme?.lowercased() == openFileScheme {
                 return parseOpenFileURL(url)        // emacs://file/… (nil if malformed → dropped)
@@ -435,6 +420,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 runEmacsGui(targets: [])
             }
         }
+    }
+
+    /// Once the app is **resident** (it stayed alive after a previous GUI launch), a fresh
+    /// launch — Spotlight, `open -a "Emacs Launcher"`, or re-selecting it — no longer
+    /// re-runs `applicationDidFinishLaunching`; it arrives here instead. (A document/URL
+    /// open still goes through `application(_:open:)`.) Mirror the bare-launch behavior:
+    /// surface a frame, or show the LaunchAgent panel when ⌥ Option is held.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        alreadyOfferedInstall = false
+        if NSEvent.modifierFlags.contains(.option) {
+            showLaunchAgentPanel()
+        } else {
+            runEmacsGui(targets: [])
+        }
+        return true
     }
 }
 

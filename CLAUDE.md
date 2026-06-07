@@ -66,8 +66,19 @@ run in a loop.
 ## How it works (main.swift)
 
 Runs as an **`LSUIElement` / `.accessory`** app — invisible in the Dock, no menu bar
-— that still receives open events and can activate another app. It does its one job
-and calls `NSApp.terminate`.
+— that still receives open events and can activate another app. After handling an
+event it calls **`finish()`**, which **stays resident** for GUI launches (Launch
+Services / Dock / Spotlight / `open`) and only `terminate`s for one-shot direct-CLI
+runs (`EmacsLauncher file…`, which must exit so they don't hang a script). Staying
+resident means the *next* Finder / Dock / Spotlight / `org-protocol` / `emacs://`
+event lands in `application(_:open:)` on the already-running process, skipping the
+cold start (spawn + dyld + AppKit init) — so the app is fast after its first use this
+session. `.accessory` keeps it Dock-invisible while resident; a failure path that
+switched to `.regular` to front a modal reverts to `.accessory` in `finish()`. There
+is no login item — the first open of a session still pays the cold start. While
+resident, a fresh launch (no document) arrives via `applicationShouldHandleReopen`
+rather than `applicationDidFinishLaunching`; both surface a frame (or, with ⌥ held,
+`showLaunchAgentPanel()`). To stop the resident process: `killall EmacsLauncher`.
 
 `handleCLIFlags()` runs first in the entry point, *before* `NSApplication`: it prints
 help/version to stdout and `exit`s for the exact tokens `-h`/`--help`/`-V`/`--version`
