@@ -81,6 +81,10 @@ APP="/Applications/Emacs Launcher.app" ./emacs-launcher-build.sh
   `-h`/`--help` for usage, or `-V`/`--version`.
 
 - **org-protocol:** links like `org-protocol://capture?...` are handed straight to Emacs.
+  Note: stock GNU Emacs (the Cocoa/NS build) registers only `mailto`, so `org-protocol`
+  has **no handler out of the box** — Emacs Launcher provides it, replacing emacs-plus's
+  separate `Emacs Client.app` helper. (The emacs-mac port patches it into its own
+  `Emacs.app`, so there it simply coexists.)
 
 ## Linking to a file (`emacs://` scheme)
 
