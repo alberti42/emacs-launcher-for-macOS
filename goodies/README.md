@@ -1,14 +1,15 @@
 # Goodies
 
-Optional helpers for Emacs Launcher's URL schemes. The first two *generate*
-`emacs://` links (which open a file in Emacs at an optional line/column); the third
-makes Emacs Launcher the **default handler** for a scheme.
+Optional helpers that pair with Emacs Launcher. The first two *generate* `emacs://`
+links (which open a file in Emacs at an optional line/column); the third chooses the
+**default handler** for a scheme; the fourth keeps an **Emacs daemon** running.
 
 | File | What it does | Where it runs |
 |------|--------------|---------------|
 | `copy-emacs-uri-from-finder.applescript` | copy an `emacs://` link to the file(s) selected in **Finder** | macOS / Finder |
 | `emacs-uri.el` | copy an `emacs://` link to the **current buffer at point** (with line:column) | Emacs |
 | `set-default-handler.swift` | list / choose the **default** app for `org-protocol://` and `emacs://` | macOS |
+| `io.alberti42.emacs-daemon.plist` | keep an **Emacs daemon** running at login (LaunchAgent) | macOS / launchd |
 
 The link format is `emacs://file/<percent-encoded-path>[+LINE[:COLUMN]]` — see the
 main [README](../README.md#linking-to-a-file-emacs-scheme).
@@ -80,4 +81,39 @@ The list is keyed by **bundle id**, not file path, so it can be shorter than
 all) won't appear. On a typical setup only Emacs Launcher is a valid handler for these
 two schemes — emacs-mac's `Emacs.app` (`org.gnu.Emacs`) and emacs-plus's
 `Emacs Client.app` (`org.gnu.emacsclient`) are usually shadowed by id collisions.
+
+## `io.alberti42.emacs-daemon.plist` — keep the daemon running
+
+Emacs Launcher needs a running daemon. This LaunchAgent starts one at login and restarts
+it if it ever exits, so one is always available (and Launcher never has to show its
+"Can't reach the Emacs server" alert).
+
+```sh
+cp goodies/io.alberti42.emacs-daemon.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.alberti42.emacs-daemon.plist
+# stop / remove:
+launchctl bootout gui/$(id -u)/io.alberti42.emacs-daemon
+```
+
+Why it's written the way it is:
+
+- **`emacs --fg-daemon`, not `--daemon`.** Under launchd's `KeepAlive` the daemon must run
+  in the **foreground** so launchd can supervise it. Plain `--daemon` forks and detaches,
+  which launchd reads as "exited" and restarts in a loop.
+- **`zsh -lc` (a login shell).** Not for convenience — it gives the daemon your `PATH` and
+  environment (macOS `path_helper` via `/etc/zprofile`, plus your shell config) so it can
+  find `emacs` and the tools its subprocesses run. If your `PATH` is set only in
+  `~/.zshrc`, change `-lc` to `-ilc`. (Alternatively, drop the shell and use
+  `exec-path-from-shell` inside Emacs.)
+- **`TERM` / `COLORTERM` are not set here.** launchd has no terminal to inherit them from.
+  If you want them in the daemon (e.g. for subprocess color), set them in `early-init.el`
+  rather than wrapping the launch:
+
+  ```elisp
+  (setenv "TERM" "xterm-256color")
+  (setenv "COLORTERM" "truecolor")
+  ```
+
+Forking this for yourself? Change the `Label` to your own reverse-DNS id and rename the
+file to match.
 

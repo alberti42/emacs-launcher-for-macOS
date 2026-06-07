@@ -38,6 +38,9 @@ Start a daemon if you don't already run one, e.g.:
 emacs --daemon
 ```
 
+To keep one running across logins, see the LaunchAgent in
+[`goodies/`](goodies/#ioalberti42emacs-daemonplist--keep-the-daemon-running).
+
 ## Install
 
 ```sh

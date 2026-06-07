@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchAgent that keeps an Emacs daemon running for your login session: it starts at
+  login (RunAtLoad) and is restarted if it ever exits (KeepAlive). With a daemon always
+  up, Emacs Launcher never has to fall back to its "Can't reach the Emacs server" alert.
+
+  Install:
+    cp goodies/io.alberti42.emacs-daemon.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.alberti42.emacs-daemon.plist
+  Remove:
+    launchctl bootout gui/$(id -u)/io.alberti42.emacs-daemon
+
+  Fork it: change the Label to your own reverse-DNS id, and rename the file to match.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>io.alberti42.emacs-daemon</string>
+
+    <!-- A *login* shell (-l) so the daemon inherits your PATH and environment — including
+         macOS's path_helper via /etc/zprofile, plus your shell config — so it can find
+         `emacs` and the tools its subprocesses call.  (If your PATH lives only in
+         ~/.zshrc, use -ilc instead.)  Then exec Emacs as a FOREGROUND daemon:
+         --fg-daemon, NOT --daemon.  Plain --daemon forks and detaches, which launchd
+         reads as "exited" and — with KeepAlive — restarts forever.
+
+         TERM / COLORTERM are intentionally NOT set here; set them in early-init.el if you
+         want them in the daemon (see goodies/README.md). -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/zsh</string>
+        <string>-lc</string>
+        <string>exec emacs --fg-daemon</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>LowPriorityIO</key>
+    <true/>
+</dict>
+</plist>
