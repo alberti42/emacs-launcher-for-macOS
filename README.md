@@ -86,7 +86,9 @@ CONFIG=debug ICON_SRC=~/icons/emacs.icns ./emacs-launcher-build.sh
 |----------|---------|---------|
 | `APP` | `~/Applications/Emacs Launcher.app` | Where to install the `.app`. |
 | `CONFIG` | `release` | `release` or `debug`. |
+| `ICON_NAME` | `dragon-plus` | Which `assets/icons/<name>.icon` to compile (see [Icon](#icon)). |
 | `ICON_SRC` | — | Optional `.icns` for macOS versions before 26. |
+| `UPDATE_PREBUILT` | — | `1` to also refresh the committed icon fallback (see [Icon](#icon)). |
 
 #### Runtime: the daemon socket
 
@@ -348,6 +350,26 @@ and really the reason the app exists:
 no menu bar. It does this one job in a fraction of a second and then quits. All you see is
 Emacs coming to the front.
 
+## Icon
+
+The app icon is the **"dragon-plus"** icon from
+[d12frosted/homebrew-emacs-plus](https://github.com/d12frosted/homebrew-emacs-plus)
+(`community/icons/dragon-plus`). All rights to the artwork remain with its original
+authors — see the emacs-plus repository for licensing and attribution.
+
+It lives in the repo as its loose [Icon Composer](https://developer.apple.com/icon-composer/)
+source (`assets/icons/dragon-plus.icon`), and the build compiles it with `actool` into
+`Assets.car` (the macOS 26 "Tahoe" icon) plus an `.icns` for older macOS. Because `actool`
+ships only with full Xcode, the compiled artifacts are also committed under
+`assets/prebuilt/` as a fallback used when `actool` isn't available. After changing the
+icon, refresh that fallback with:
+
+```sh
+UPDATE_PREBUILT=1 ./emacs-launcher-build.sh
+```
+
+See [`assets/README.md`](assets/README.md) for details.
+
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). The bundled icon artwork is excluded; see [Icon](#icon).
