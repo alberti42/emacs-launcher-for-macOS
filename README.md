@@ -77,6 +77,9 @@ APP="/Applications/Emacs Launcher.app" ./emacs-launcher-build.sh
   for a given type, use *Get Info* → *Open with* → *Change All…*
 - **Dock / Spotlight:** launch *Emacs Launcher* to bring Emacs forward (opening a frame if
   needed).
+- **Option-launch:** hold **⌥ Option** while launching the app (no file) to open the
+  *daemon LaunchAgent* panel — install it (so a daemon starts at login and stays up), or
+  uninstall it if it's already installed. See [Practical tips](#keeping-a-daemon-running-launchagent).
 - **Drag-and-drop:** drop files onto the app.
 - **Command line (via Launch Services):**
 
@@ -214,6 +217,21 @@ This writes a reversible *user preference*; you do **not** deregister the other 
 so it's often shorter than the raw registrations: emacs-mac's `Emacs.app` and emacs-plus's
 `Emacs Client.app` are usually shadowed by id collisions, leaving Emacs Launcher the only
 selectable handler for these schemes.
+
+### Keeping a daemon running (LaunchAgent)
+
+Emacs Launcher needs a running daemon. To have one start at login and restart if it
+exits, install the bundled LaunchAgent — three equivalent ways:
+
+- **Option-launch:** hold **⌥ Option** while launching the app (no file) to open a panel
+  that installs the agent (or uninstalls it if it's already installed).
+- **When prompted:** if the daemon is ever unreachable, the error dialog offers to install
+  it (and then reopens your file).
+- **By hand:** see
+  [`goodies/`](goodies/#ioalberti42emacs-daemonplist--keep-the-daemon-running).
+
+It runs `emacs --fg-daemon` under launchd's `KeepAlive`. To change the socket it serves
+(`EMACS_SOCKET_NAME`) or set `TERM`/`COLORTERM`, see the goodies notes.
 
 ## Troubleshooting
 

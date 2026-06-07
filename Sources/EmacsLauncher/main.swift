@@ -295,6 +295,62 @@ func waitForDaemon(_ socket: String, timeout: TimeInterval) -> Bool {
     return false
 }
 
+/// The deliberate LaunchAgent panel, shown when the app is launched with Option held (a
+/// bare double-click in Finder / Dock). Offers Install if the agent isn't present, or
+/// Uninstall if it is. Always terminates.
+func showLaunchAgentPanel() {
+    NSApp.setActivationPolicy(.regular)
+    NSApp.activate(ignoringOtherApps: true)
+
+    let dst = launchAgentDestination()
+    let installed = FileManager.default.fileExists(atPath: dst.path)
+    let reachable = EmacsServer.socketPath().map(EmacsServer.isReachable) ?? false
+    let status = reachable ? "the daemon is running" : "no daemon is responding"
+
+    let alert = NSAlert()
+    alert.alertStyle = .informational
+    if installed {
+        alert.messageText = "Emacs daemon LaunchAgent is installed."
+        alert.informativeText =
+            "It starts an Emacs daemon at login and restarts it if it exits "
+            + "(currently \(status)).\n\nUninstalling removes it and stops the running "
+            + "daemon — unsaved buffers would be lost.\n\n\(dst.path)"
+        alert.addButton(withTitle: "Uninstall")
+        alert.addButton(withTitle: "Done")
+        if alert.runModal() == .alertFirstButtonReturn {
+            let (ok, message) = uninstallLaunchAgent()
+            infoAlert(ok ? "Uninstalled the LaunchAgent." : "Couldn't uninstall.", message)
+        }
+    } else {
+        alert.messageText = "Install the Emacs daemon LaunchAgent?"
+        alert.informativeText =
+            "It starts an Emacs daemon at login and restarts it if it exits, so Emacs "
+            + "Launcher always has a daemon to talk to. Installs to ~/Library/LaunchAgents "
+            + "and loads it now. (Currently \(status).)"
+        alert.addButton(withTitle: "Install")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn {
+            let (ok, message) = installLaunchAgent()
+            infoAlert(ok ? "Installed the LaunchAgent." : "Couldn't install.", message)
+        }
+    }
+    NSApp.terminate(nil)
+}
+
+/// `launchctl bootout` the agent and remove its plist. (Booting it out stops the daemon
+/// it was supervising — hence the warning in the panel.)
+func uninstallLaunchAgent() -> (ok: Bool, message: String) {
+    let label = (launchAgentName as NSString).deletingPathExtension
+    runProcess("/bin/launchctl", ["bootout", "gui/\(getuid())/\(label)"])
+    let dst = launchAgentDestination()
+    guard FileManager.default.fileExists(atPath: dst.path) else {
+        return (true, "It was not installed.")
+    }
+    do { try FileManager.default.removeItem(at: dst) }
+    catch { return (false, "Couldn't remove \(dst.path):\n\(error.localizedDescription)") }
+    return (true, "Removed \(dst.path).")
+}
+
 // MARK: - App delegate
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -330,9 +386,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             runEmacsGui(targets: cliTargets)
             return
         }
+        // Holding Option during a bare launch (double-clicking the app in Finder/Dock)
+        // opens the daemon LaunchAgent panel instead of surfacing a frame. Capture the
+        // modifier now, before the hop, while the key is still down.
+        let optionHeld = NSEvent.modifierFlags.contains(.option)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) { [weak self] in
             guard let self, !self.handledOpen else { return }
-            runEmacsGui(targets: [])
+            if optionHeld {
+                showLaunchAgentPanel()
+            } else {
+                runEmacsGui(targets: [])
+            }
         }
     }
 }

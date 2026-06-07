@@ -75,7 +75,9 @@ Three ways work arrives, all funnelling into `runEmacsGui(targets:)`:
   honoured — a path is invisible to the open-event path.
 - `applicationDidFinishLaunching` (no CLI args) — bare launch (Dock / Spotlight). After
   a short ~60 ms hop (to let a pending open event win the race and avoid creating an
-  empty frame *and* opening a file), it surfaces a frame.
+  empty frame *and* opening a file), it surfaces a frame — **unless ⌥ Option was held**
+  at launch (captured via `NSEvent.modifierFlags` before the hop), in which case it shows
+  `showLaunchAgentPanel()` (install/uninstall the daemon LaunchAgent) instead.
 
 An `OpenTarget` is `(arg, position?)`. `runEmacsGui(targets:)` does **two short socket
 exchanges** with the daemon (each is one connect → send one `\n`-terminated line → read
