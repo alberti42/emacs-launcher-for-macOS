@@ -102,15 +102,19 @@ final class OptionPanelController: NSObject, NSWindowDelegate {
         recentButtons.orientation = .horizontal
         recentButtons.spacing = 10
 
+        let spotlightToggle = NSButton(checkboxWithTitle: "Index recent files in Spotlight",
+                                       target: self, action: #selector(toggleSpotlight))
+        spotlightToggle.state = SpotlightIndex.isEnabled ? .on : .off
+
         RecentFiles.detectPath()        // refresh the detected-path cache for display
         updateRecentPathField()
 
         let recentSection = section(
             header: "Recent Files for Spotlight",
             body: "Emacs Launcher detects your recentf file automatically from the running "
-                + "daemon; its recent entries will be offered in Spotlight. Choose an "
-                + "override only if you want to point at a specific file instead.",
-            extras: [recentButtons, recentPathField])
+                + "daemon and offers its recent entries in Spotlight, opening them in Emacs. "
+                + "Choose an override only if you want to point at a specific file instead.",
+            extras: [spotlightToggle, recentButtons, recentPathField])
 
         // — Section 3: background activation + Done / Kill ————————————————
         let killButton = makeButton("Kill Emacs Launcher", #selector(killLauncher))
@@ -200,6 +204,11 @@ final class OptionPanelController: NSObject, NSWindowDelegate {
             UserDefaults.standard.set(url.path, forKey: RecentFiles.overridePathKey)
             updateRecentPathField()
         }
+    }
+
+    /// Turn Spotlight indexing on (reindex now) or off (clear our items).
+    @objc private func toggleSpotlight(_ sender: NSButton) {
+        SpotlightIndex.setEnabled(sender.state == .on)
     }
 
     /// Clear the override and go back to the auto-detected path.

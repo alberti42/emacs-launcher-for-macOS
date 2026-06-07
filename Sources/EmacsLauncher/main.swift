@@ -113,6 +113,12 @@ func runEmacsGui(targets: [OpenTarget]) {
     // ambiguous).
     activateEmacsBundle(bundlePath)
 
+    // We just opened file(s), so they're now Emacs's most-recent — refresh the Spotlight
+    // index shortly (give recentf a moment to record them). Resident GUI launches only.
+    if !launchedFromCommandLine, !targets.isEmpty {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { SpotlightIndex.reindex() }
+    }
+
     // One job done. We're already on the main thread here (invoked from a delegate
     // callback). For a one-shot CLI run this terminates; for a GUI launch it stays
     // resident, ready for the next event.
@@ -380,6 +386,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// between `on open` / `on open location` and `on run`.
     private var handledOpen = false
 
+    /// Repeating timer that refreshes the Spotlight index while the app is resident.
+    private var reindexTimer: Timer?
+    /// How often the resident app refreshes the Spotlight index from `recentf`.
+    private let reindexInterval: TimeInterval = 120
+
+    /// Start Spotlight maintenance for a resident (GUI) launch: index now, then refresh on
+    /// a timer. Not called for one-shot CLI runs, which terminate immediately.
+    private func startSpotlightMaintenance() {
+        SpotlightIndex.reindex()
+        reindexTimer = Timer.scheduledTimer(withTimeInterval: reindexInterval, repeats: true) { _ in
+            SpotlightIndex.reindex()
+        }
+    }
+
     /// Finder "Open With", drag-and-drop, `file://`, `emacs://file/…`, and
     /// `org-protocol://` URLs all arrive here on modern macOS, in one unified callback.
     func application(_ application: NSApplication, open urls: [URL]) {
@@ -408,6 +428,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             runEmacsGui(targets: cliTargets)
             return
         }
+        // A GUI launch: the app will stay resident, so keep the Spotlight index fresh.
+        startSpotlightMaintenance()
         // Holding Option during a bare launch (double-clicking the app in Finder/Dock)
         // opens the daemon LaunchAgent panel instead of surfacing a frame. Capture the
         // modifier now, before the hop, while the key is still down.
@@ -434,6 +456,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             runEmacsGui(targets: [])
         }
+        return true
+    }
+
+    /// A Spotlight search result we indexed was selected: open the file (the activity's
+    /// identifier is its path) in Emacs.
+    func application(_ application: NSApplication, continue userActivity: NSUserActivity,
+                     restorationHandler: @escaping ([any NSUserActivityRestoring]) -> Void) -> Bool {
+        guard let path = SpotlightIndex.selectedPath(from: userActivity) else { return false }
+        handledOpen = true
+        alreadyOfferedInstall = false
+        runEmacsGui(targets: [OpenTarget(arg: path, position: nil)])
         return true
     }
 }
@@ -474,6 +507,19 @@ func handleCLIFlags() {
         let local = RecentFiles.localPaths()
         print("local existing files (\(local.count)):")
         for file in local { print("  \(file)") }
+        exit(0)
+    }
+    // Undocumented developer aid: force a Spotlight reindex and report the result, then
+    // exit. Run via the installed bundle's binary so Core Spotlight uses the app's identity.
+    if args.contains("--reindex-spotlight") {
+        let done = DispatchSemaphore(value: 0)
+        let count = RecentFiles.localPaths().count
+        SpotlightIndex.reindex { error in
+            if let error { print("reindex failed: \(error.localizedDescription)") }
+            else { print("indexed \(count) items into Spotlight (domain \(SpotlightIndex.domain), enabled: \(SpotlightIndex.isEnabled))") }
+            done.signal()
+        }
+        done.wait()
         exit(0)
     }
     if args.contains("-V") || args.contains("--version") {

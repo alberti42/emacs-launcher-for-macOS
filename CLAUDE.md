@@ -23,7 +23,8 @@ so the two coexist and a user can keep both.
 | `Sources/EmacsLauncher/main.swift` | App lifecycle, open-event / CLI handling, the two-exchange flow, activation. |
 | `Sources/EmacsLauncher/EmacsServer.swift` | Native Emacs server-protocol client: socket-path resolution, `&`-quoting, send/parse. |
 | `Sources/EmacsLauncher/OptionPanel.swift` | `OptionPanelController` — the ⌥-Option modal: LaunchAgent install/uninstall, recent-files source (auto-detect + override picker), background-activation info with Done / Kill. |
-| `Sources/EmacsLauncher/RecentFiles.swift` | Resolves the user's recent files (for a future Spotlight feature): live `recentf-list` over the socket, `.eld`-on-disk fallback. Path/override cached in `UserDefaults` (= the app's plist). |
+| `Sources/EmacsLauncher/RecentFiles.swift` | Resolves the user's recent files: live `recentf-list` over the socket, `.eld`-on-disk fallback. `localPaths()` normalizes (expand `~`, drop TRAMP/missing). Path/override cached in `UserDefaults` (= the app's plist). |
+| `Sources/EmacsLauncher/SpotlightIndex.swift` | Publishes `RecentFiles.localPaths()` into Spotlight via Core Spotlight (`CSSearchableItem`s in domain `…EmacsLauncher.recentf`). Reindex on launch + 120 s timer + after each open; selecting a result opens it in Emacs (`application(_:continue:)`). Toggle in `UserDefaults` (`SpotlightIndexingEnabled`, default on). |
 | `Package.swift` | SwiftPM executable target `EmacsLauncher` (macOS 12+). |
 | `Info.plist` | Static bundle plist: UTIs, document types, `org-protocol` scheme, `LSUIElement`. Copied into the bundle; the build script patches `CFBundleIconName`/`CFBundleIconFile` to the compiled icon's name. |
 | `emacs-launcher-build.sh` | Build + bundle + compile icon + sign + register. The only build entry point. `SIGN_ID`/`REGISTER`/`UNIVERSAL` make it CI-friendly. |
