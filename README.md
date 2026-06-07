@@ -180,6 +180,30 @@ setup). It only matters if Finder's *Open With* points at the regular Emacs.app:
   (setq ns-pop-up-frames nil))
 ```
 
+### Make Emacs Launcher your `org-protocol` handler
+
+`org-protocol://` is often registered by more than one app — emacs-mac's `Emacs.app`,
+emacs-plus's `Emacs Client.app`, any leftover copies — and macOS sends the scheme to
+exactly **one** of them, chosen by registration order, with **no GUI to pick**. To make
+Emacs Launcher the handler for good:
+
+```sh
+swift goodies/set-default-handler.swift            # claims org-protocol
+```
+
+This sets a reversible *user preference* for the preferred app. Note you do **not**
+deregister the competing apps: that wouldn't stick (they re-register themselves on
+launch or on the next Launch Services rescan) and would disturb their other
+associations — declaring the default is the right tool. The script prints the previous
+and new handler; pass extra schemes (e.g. `… org-protocol emacs`) to claim those too.
+
+To list every app that claims a scheme:
+
+```sh
+LSREG=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+"$LSREG" -dump | awk '/^[[:space:]]*path:/{p=$0} /claimed schemes:.*org-protocol/{print p}' | sort -u
+```
+
 ## Troubleshooting
 
 - **Nothing happens / Emacs doesn't open.** Make sure the daemon is running and
