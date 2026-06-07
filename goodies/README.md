@@ -110,11 +110,14 @@ Why it's written the way it is:
 - **`emacs --fg-daemon`, not `--daemon`.** Under launchd's `KeepAlive` the daemon must run
   in the **foreground** so launchd can supervise it. Plain `--daemon` forks and detaches,
   which launchd reads as "exited" and restarts in a loop.
-- **`zsh -lc` (a login shell).** Not for convenience — it gives the daemon your `PATH` and
-  environment (macOS `path_helper` via `/etc/zprofile`, plus your shell config) so it can
-  find `emacs` and the tools its subprocesses run. If your `PATH` is set only in
-  `~/.zshrc`, change `-lc` to `-ilc`. (Alternatively, drop the shell and use
-  `exec-path-from-shell` inside Emacs.)
+- **`<shell> -l -c` (a login shell).** Not for convenience — it gives the daemon your
+  `PATH` and environment (macOS `path_helper` via `/etc/zprofile`, plus your shell config)
+  so it can find `emacs` and the tools its subprocesses run. **The app fills in your own
+  login shell** when it installs this (from the password database — what you set with
+  `chsh`), so it works whether you use zsh, bash, or fish. For a **hand-install**, the
+  template ships with `/bin/zsh`; replace it with your login shell. If your `PATH` is set
+  only in `~/.zshrc` (interactive-only), add `-i` (`-i -l -c`). (Alternatively, drop the
+  shell and use `exec-path-from-shell` inside Emacs.)
 - **`TERM` / `COLORTERM` are not set here.** launchd has no terminal to inherit them from.
   If you want them in the daemon (e.g. for subprocess color), set them in `early-init.el`
   rather than wrapping the launch:

@@ -129,8 +129,10 @@ The wire protocol is line-based: space-separated tokens, values `&`-quoted (lead
 - **Never fail silently from the GUI.** When the daemon can't be reached, `handleNoDaemon`
   reports it — stderr (with the socket path) for direct CLI launches
   (`launchedFromCommandLine` — a modal would hang a script), and for GUI launches a modal
-  `NSAlert` that shows the socket and offers **Install LaunchAgent**. Installing copies the
-  bundled `Contents/Resources/io.alberti42.emacs-daemon.plist` into `~/Library/LaunchAgents`,
+  `NSAlert` that shows the socket and offers **Install LaunchAgent**. Installing reads the
+  bundled `Contents/Resources/io.alberti42.emacs-daemon.plist`, substitutes the user's
+  **login shell** into `ProgramArguments[0]` (via `loginShell()`/`getpwuid` — so the daemon
+  inherits the right env regardless of zsh/bash/fish), writes it to `~/Library/LaunchAgents`,
   `launchctl bootstrap`s it, waits (`waitForDaemon`) for the daemon, then retries the open.
   The build script copies that plist from `goodies/` into Resources — keep `launchAgentName`
   in `main.swift` in sync with the goodies filename. `reportFailure` is the simpler variant

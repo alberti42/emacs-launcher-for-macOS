@@ -12,6 +12,11 @@
     launchctl bootout gui/$(id -u)/io.alberti42.emacs-daemon
 
   Fork it: change the Label to your own reverse-DNS id, and rename the file to match.
+
+  Shell: the first ProgramArguments entry is your shell. When Emacs Launcher installs
+  this for you, it substitutes your *login shell* (from the password database — i.e. the
+  one you set with `chsh`), so the daemon inherits the right environment. If you install
+  by hand, replace /bin/zsh below with your own login shell (bash, fish, …).
 -->
 <plist version="1.0">
 <dict>
@@ -21,16 +26,17 @@
     <!-- A *login* shell (-l) so the daemon inherits your PATH and environment — including
          macOS's path_helper via /etc/zprofile, plus your shell config — so it can find
          `emacs` and the tools its subprocesses call.  (If your PATH lives only in
-         ~/.zshrc, use -ilc instead.)  Then exec Emacs as a FOREGROUND daemon:
-         --fg-daemon, NOT --daemon.  Plain --daemon forks and detaches, which launchd
-         reads as "exited" and — with KeepAlive — restarts forever.
+         ~/.zshrc, add -i for an interactive shell too.)  Then exec Emacs as a FOREGROUND
+         daemon: --fg-daemon, NOT --daemon.  Plain --daemon forks and detaches, which
+         launchd reads as "exited" and — with KeepAlive — restarts forever.
 
          TERM / COLORTERM are intentionally NOT set here; set them in early-init.el if you
          want them in the daemon (see goodies/README.md). -->
     <key>ProgramArguments</key>
     <array>
         <string>/bin/zsh</string>
-        <string>-lc</string>
+        <string>-l</string>
+        <string>-c</string>
         <string>exec emacs --fg-daemon</string>
     </array>
 

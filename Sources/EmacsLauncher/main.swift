@@ -277,21 +277,49 @@ func handleNoDaemon(socket: String, targets: [OpenTarget]) {
 /// whether the file was installed, plus a message to show.
 func installLaunchAgent() -> (ok: Bool, message: String) {
     let resource = (launchAgentName as NSString).deletingPathExtension
-    guard let src = Bundle.main.url(forResource: resource, withExtension: "plist") else {
-        return (false, "The LaunchAgent is missing from the app bundle.")
+    guard let src = Bundle.main.url(forResource: resource, withExtension: "plist"),
+          let data = try? Data(contentsOf: src),
+          var plist = (try? PropertyListSerialization.propertyList(from: data, format: nil))
+              as? [String: Any] else {
+        return (false, "The LaunchAgent template is missing or unreadable in the app bundle.")
     }
+
+    // Run the user's *login shell* (from the password database) rather than a hardcoded
+    // one, so the daemon — and therefore every Emacs session and subprocess — inherits
+    // the right PATH and environment. The bundled plist's `-l -c "exec emacs --fg-daemon"`
+    // works across zsh/bash/fish; we only swap the shell path (ProgramArguments[0]).
+    let shell = loginShell()
+    if var args = plist["ProgramArguments"] as? [String], !args.isEmpty {
+        args[0] = shell
+        plist["ProgramArguments"] = args
+    }
+    guard let out = try? PropertyListSerialization.data(
+            fromPropertyList: plist, format: .xml, options: 0) else {
+        return (false, "Couldn't build the LaunchAgent plist.")
+    }
+
     let dst = launchAgentDestination()
     let fm = FileManager.default
     do {
         try fm.createDirectory(at: dst.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if fm.fileExists(atPath: dst.path) { try fm.removeItem(at: dst) }
-        try fm.copyItem(at: src, to: dst)
+        try out.write(to: dst, options: .atomic)
     } catch {
         return (false, "Couldn't write \(dst.path):\n\(error.localizedDescription)")
     }
     // Load it into the GUI session now (nonzero just means already loaded — harmless).
     runProcess("/bin/launchctl", ["bootstrap", "gui/\(getuid())", dst.path])
-    return (true, "Installed \(dst.path).")
+    return (true, "Installed \(dst.path)\nusing your login shell: \(shell)")
+}
+
+/// The user's login shell from the password database (what they set with `chsh`) — the
+/// authoritative "their shell", independent of the `$SHELL` env var. Falls back to
+/// `/bin/zsh` if it can't be read or isn't executable.
+func loginShell() -> String {
+    if let pw = getpwuid(getuid()), let sh = pw.pointee.pw_shell {
+        let path = String(cString: sh)
+        if !path.isEmpty, FileManager.default.isExecutableFile(atPath: path) { return path }
+    }
+    return "/bin/zsh"
 }
 
 /// Poll the socket until the daemon answers or `timeout` seconds elapse.
