@@ -17,6 +17,8 @@ PLIST_SRC="$SRC_DIR/Info.plist"
 ICONS_DIR="${ICONS_DIR:-$SRC_DIR/assets/icons}"       # loose <name>.icon Icon Composer sources
 ICON_NAME="${ICON_NAME:-dragon-plus}"                 # which one to compile; basename of the .icon
 # ICON_SRC="/path/to.icns"   # optional: override the pre-Tahoe .icns with your own
+SIGN_ID="${SIGN_ID:--}"      # codesign identity; default "-" (ad-hoc). CI passes a Developer ID.
+REGISTER="${REGISTER:-1}"    # lsregister the bundle after building; CI sets REGISTER=0.
 
 # UNIVERSAL=1 builds a fat arm64+x86_64 binary (to compile once and run on either
 # architecture); the default compiles for the host arch only. The same flags must go on
@@ -116,17 +118,30 @@ if [[ -n "${ICON_SRC:-}" && -f "$ICON_SRC" ]]; then
   cp "$ICON_SRC" "$RES/$ICON_NAME.icns"
 fi
 
-# --- ad-hoc codesign so the bundle is treated as a stable, valid app ---
-# (Required for Launch Services to honour the declared types reliably on recent macOS.)
+# --- codesign so the bundle is treated as a stable, valid app ---
+# Ad-hoc ("-") is enough for local use (and lets Launch Services honour the declared
+# types reliably on recent macOS). For distribution, pass a Developer ID via SIGN_ID;
+# we then add the hardened runtime + a secure timestamp (both required for notarization)
+# and treat a signing failure as fatal rather than continuing unsigned.
 if command -v codesign >/dev/null 2>&1; then
-  echo "==> Ad-hoc signing"
-  codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || \
-    echo "!! codesign failed (continuing unsigned)" >&2
+  sign_args=(--force --deep --sign "$SIGN_ID")
+  if [[ "$SIGN_ID" == "-" ]]; then
+    echo "==> Ad-hoc signing"
+    codesign "${sign_args[@]}" "$APP" >/dev/null 2>&1 || \
+      echo "!! codesign failed (continuing unsigned)" >&2
+  else
+    echo "==> Signing with Developer ID ($SIGN_ID)"
+    sign_args+=(--options runtime --timestamp)
+    codesign "${sign_args[@]}" "$APP"   # fail loudly: an unsigned release is not shippable
+  fi
 fi
 
 # --- register with Launch Services so URL scheme + doc types take effect now ---
-LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
-echo "==> Registering with Launch Services"
-"$LSREGISTER" -f "$APP"
+# Pointless on a CI runner (the bundle is zipped, not used there) -- skip with REGISTER=0.
+if [[ "$REGISTER" == "1" ]]; then
+  LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+  echo "==> Registering with Launch Services"
+  "$LSREGISTER" -f "$APP"
+fi
 
 echo "==> Done: $APP"

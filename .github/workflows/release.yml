@@ -1,0 +1,108 @@
+name: Release
+
+# Push a version tag (e.g. v0.2.0) to build a universal, Developer ID-signed and
+# notarized "Emacs Launcher.app", then publish it as a *draft* GitHub release with the
+# zip attached. Review the draft and click Publish. Release notes are read from a
+# committed file: release-notes/<tag>.md (e.g. release-notes/v0.2.0.md) -- create it
+# before pushing the tag.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   CERTIFICATE_BASE64    base64 of the "Developer ID Application" .p12
+#   CERTIFICATE_PASSWORD  password protecting that .p12
+#   APPLE_ID              Apple ID email used for notarization
+#   APPLE_ID_PASSWORD     app-specific password for that Apple ID
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+env:
+  TEAM_ID: 9V3X7C8VCK
+  APP_NAME: Emacs Launcher
+
+jobs:
+  release:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set bundle version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" Info.plist
+
+      - name: Import signing certificate
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain"
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 20)
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          echo "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security list-keychains -d user \
+            -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+
+      - name: Build, sign, notarize, and package
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          APP="$RUNNER_TEMP/$APP_NAME.app"
+          ZIP="$APP_NAME-$VERSION.zip"
+          ZIP="${ZIP// /-}"                       # Emacs-Launcher-<version>.zip
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+
+          # Universal build, Developer ID-signed (hardened runtime + timestamp), no
+          # Launch Services registration (pointless on a runner).
+          APP="$APP" \
+          UNIVERSAL=1 \
+          SIGN_ID="Developer ID Application: Andrea Alberti ($TEAM_ID)" \
+          REGISTER=0 \
+          ./emacs-launcher-build.sh
+
+          ditto -c -k --keepParent "$APP" "$ZIP"
+
+          xcrun notarytool store-credentials "notary-profile" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$TEAM_ID"
+          xcrun notarytool submit "$ZIP" \
+            --keychain-profile "notary-profile" \
+            --wait
+          xcrun stapler staple "$APP"
+          ditto -c -k --keepParent "$APP" "$ZIP"  # re-zip so the staple is included
+
+      - name: Create draft GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ZIP }}
+          body_path: release-notes/${{ github.ref_name }}.md
+          make_latest: true
+          draft: true
+          prerelease: false
+
+      - name: Clean up keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/build.keychain" || true

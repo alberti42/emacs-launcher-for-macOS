@@ -24,7 +24,8 @@ so the two coexist and a user can keep both.
 | `Sources/EmacsLauncher/EmacsServer.swift` | Native Emacs server-protocol client: socket-path resolution, `&`-quoting, send/parse. |
 | `Package.swift` | SwiftPM executable target `EmacsLauncher` (macOS 12+). |
 | `Info.plist` | Static bundle plist: UTIs, document types, `org-protocol` scheme, `LSUIElement`. Copied into the bundle; the build script patches `CFBundleIconName`/`CFBundleIconFile` to the compiled icon's name. |
-| `emacs-launcher-build.sh` | Build + bundle + compile icon + sign + register. The only build entry point. |
+| `emacs-launcher-build.sh` | Build + bundle + compile icon + sign + register. The only build entry point. `SIGN_ID`/`REGISTER`/`UNIVERSAL` make it CI-friendly. |
+| `.github/workflows/release.yml` | On `vX.Y.Z` tag push: universal + Developer ID-signed + notarized build → draft GitHub release with the zip. Notes from `release-notes/<tag>.md`. Needs `CERTIFICATE_BASE64`/`CERTIFICATE_PASSWORD`/`APPLE_ID`/`APPLE_ID_PASSWORD` secrets. |
 | `assets/icons/<name>.icon` | Loose Icon Composer source(s). `actool` compiles the one named by `ICON_NAME` (default `dragon-plus`, the emacs-plus "dragon") into `Assets.car` + `.icns` at build time. |
 | `assets/prebuilt/` | Committed `Assets.car` + `dragon-plus.icns` — the fallback used when `actool` is unavailable (no full Xcode). Refreshed only with `UPDATE_PREBUILT=1`. |
 | `goodies/` | Optional helpers that *generate* `emacs://` links (Finder AppleScript, `emacs-uri.el`). Not part of the app build. |
@@ -46,6 +47,9 @@ the Swift sources or `Info.plist`. Useful overrides:
 - `ICON_NAME=...` — which `assets/icons/<name>.icon` to compile (default `dragon-plus`).
 - `ICON_SRC=/path/to.icns` — optional: override the generated pre-Tahoe `.icns`.
 - `UNIVERSAL=1` — build a fat arm64+x86_64 binary (default: host arch only).
+- `SIGN_ID=...` — codesign identity (default `-`, ad-hoc). A `Developer ID Application: …`
+  value adds `--options runtime --timestamp` and makes a signing failure fatal.
+- `REGISTER=0` — skip the trailing `lsregister` (used by CI).
 - `UPDATE_PREBUILT=1` — also refresh the committed `assets/prebuilt/` fallback from this compile.
 
 Compiling the icon needs **full Xcode** (`actool` isn't in the Command Line Tools). Without

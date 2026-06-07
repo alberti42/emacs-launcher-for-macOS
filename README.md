@@ -71,6 +71,23 @@ you've already chosen; your existing associations are left alone. To make it the
 candidate — there's nothing to override. The picker lets you choose deliberately whenever
 alternatives exist.)
 
+### Prebuilt downloads
+
+Each [GitHub release](../../releases) attaches a **universal** (Apple Silicon + Intel),
+**Developer ID-signed and notarized** `Emacs Launcher.app` zip — no build toolchain
+needed. Download, unzip, drag it to `~/Applications`, and run it once so macOS registers
+the file-type and URL-scheme associations.
+
+#### Cutting a release (maintainers)
+
+Releases are built by [`.github/workflows/release.yml`](.github/workflows/release.yml).
+**Pushing a `vX.Y.Z` tag** builds, signs, notarizes, and creates a *draft* release with
+the zip attached; you review the draft and publish it. The release body is read from a
+committed `release-notes/<tag>.md` (e.g. `release-notes/v0.2.0.md`) — add it before
+tagging. The workflow needs these repository secrets (Settings → Secrets and variables →
+Actions): `CERTIFICATE_BASE64`, `CERTIFICATE_PASSWORD` (the Developer ID `.p12` and its
+password), `APPLE_ID`, and `APPLE_ID_PASSWORD` (an app-specific password for notarization).
+
 ### Configuration
 
 #### Build options
@@ -96,6 +113,8 @@ CONFIG=debug ICON_SRC=~/icons/emacs.icns ./emacs-launcher-build.sh
 | `ICON_SRC` | — | Optional `.icns` for macOS versions before 26. |
 | `UPDATE_PREBUILT` | — | `1` to also refresh the committed icon fallback (see [Icon](#icon)). |
 | `UNIVERSAL` | — | `1` to build a fat **arm64 + x86_64** binary (see [below](#universal-build)). |
+| `SIGN_ID` | `-` (ad-hoc) | codesign identity. A `Developer ID Application: …` value adds the hardened runtime + secure timestamp for notarization. |
+| `REGISTER` | `1` | `0` skips the Launch Services registration (used by CI, where it's pointless). |
 
 #### Universal build
 
