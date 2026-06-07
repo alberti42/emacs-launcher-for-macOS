@@ -153,7 +153,9 @@ export EMACS_SOCKET_NAME=foo
 
 ## Usage
 
-- **Finder:** right-click a file → *Open With* → *Emacs Launcher*. To make it the default for a given type, use *Get Info* → *Open with* → *Change All…*
+**Recommended setup:** make **Emacs Launcher** the default for the file types you normally edit in Emacs (text, source, Org, Emacs Lisp, Markdown, …) — *Get Info → Open with → Change All…* on a file of each type. This isn't about Emacs Launcher claiming those types for its own sake; it's that opening them through Emacs Launcher always routes the file into your **running daemon session** (reusing your frame, near-instantly). Associating them with the regular Emacs.app instead starts a *separate, standalone* Emacs whenever no frame is open — see [If you instead open files with Emacs.app directly](#if-you-instead-open-files-with-emacsapp-directly).
+
+- **Finder:** right-click a file → *Open With* → *Emacs Launcher* (or set it as the default for that type as above).
 - **Dock / Spotlight:** launch *Emacs Launcher* to bring Emacs forward (opening a frame if needed).
 - **Option-launch:** hold **⌥ Option** while launching the app (no file) to open the *daemon LaunchAgent* panel — install it (so a daemon starts at login and stays up), or uninstall it if it's already installed. See [Practical tips](#keeping-a-daemon-running-launchagent).
 - **Drag-and-drop:** drop files onto the app.
@@ -228,7 +230,7 @@ Emacs Launcher talks to the daemon over the `emacsclient` protocol, so this is t
 
 ### If you instead open files with Emacs.app directly
 
-This is **not needed if you associate files with Emacs Launcher** (the recommended setup). It only matters if Finder's *Open With* points at the regular Emacs.app:
+**Associating files with the regular Emacs.app is not recommended.** When no graphical frame is open, opening a file that way launches a *standalone* Emacs instance instead of attaching to your daemon — so you end up with a second, separate Emacs (its own buffers, state, and init time) rather than the file landing in your running session. Emacs Launcher avoids this by always going through the daemon. The setting below is offered only **in case you deliberately point Finder's *Open With* at Emacs.app anyway**; with the recommended setup (files associated with Emacs Launcher) you don't need it:
 
 ```elisp
 ;; Finder/macOS "Open with Emacs" does NOT go through emacsclient, so
