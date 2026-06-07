@@ -18,9 +18,16 @@ ICONS_DIR="${ICONS_DIR:-$SRC_DIR/assets/icons}"       # loose <name>.icon Icon C
 ICON_NAME="${ICON_NAME:-dragon-plus}"                 # which one to compile; basename of the .icon
 # ICON_SRC="/path/to.icns"   # optional: override the pre-Tahoe .icns with your own
 
-echo "==> Building Swift executable ($CONFIG)"
-swift build --package-path "$SRC_DIR" -c "$CONFIG"
-BIN="$(swift build --package-path "$SRC_DIR" -c "$CONFIG" --show-bin-path)/EmacsLauncher"
+# UNIVERSAL=1 builds a fat arm64+x86_64 binary (to compile once and run on either
+# architecture); the default compiles for the host arch only. The same flags must go on
+# both swift build calls below -- the second (--show-bin-path) reports the output dir,
+# which differs between a host-only and a universal build.
+ARCH_FLAGS=()
+[[ "${UNIVERSAL:-0}" == "1" ]] && ARCH_FLAGS=(--arch arm64 --arch x86_64)
+
+echo "==> Building Swift executable ($CONFIG${ARCH_FLAGS:+, universal})"
+swift build --package-path "$SRC_DIR" -c "$CONFIG" "${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}"
+BIN="$(swift build --package-path "$SRC_DIR" -c "$CONFIG" "${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}" --show-bin-path)/EmacsLauncher"
 [[ -x "$BIN" ]] || { echo "!! build produced no executable at $BIN" >&2; exit 1; }
 
 echo "==> Assembling bundle: $APP"

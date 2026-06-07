@@ -95,23 +95,20 @@ CONFIG=debug ICON_SRC=~/icons/emacs.icns ./emacs-launcher-build.sh
 | `ICON_NAME` | `dragon-plus` | Which `assets/icons/<name>.icon` to compile (see [Icon](#icon)). |
 | `ICON_SRC` | — | Optional `.icns` for macOS versions before 26. |
 | `UPDATE_PREBUILT` | — | `1` to also refresh the committed icon fallback (see [Icon](#icon)). |
+| `UNIVERSAL` | — | `1` to build a fat **arm64 + x86_64** binary (see [below](#universal-build)). |
 
-#### Universal (arm64 + x86_64) build
+#### Universal build
 
-By default `swift build` compiles only for the **host architecture** — so on an Apple
-Silicon Mac you get an `arm64`-only app, and on an Intel Mac an `x86_64`-only one. That
-is the right choice if you build on each machine you use.
-
-If you'd rather compile **once and copy the app to machines of either architecture**,
-make a universal binary by adding both arches to the two `swift build` invocations in
-`emacs-launcher-build.sh`:
+By default `swift build` compiles only for the **host architecture** — an `arm64`-only
+app on Apple Silicon, `x86_64`-only on Intel. That's the right choice when you build on
+each machine you use. To instead compile **once and copy the app to machines of either
+architecture**, build a universal binary with `UNIVERSAL=1`:
 
 ```sh
-swift build --package-path "$SRC_DIR" -c "$CONFIG" --arch arm64 --arch x86_64
+UNIVERSAL=1 ./emacs-launcher-build.sh
 ```
 
-(apply the same `--arch arm64 --arch x86_64` to the `--show-bin-path` call right below
-it, so the script picks up the universal output path). Verify the result with:
+Verify it:
 
 ```sh
 lipo -archs "$HOME/Applications/Emacs Launcher.app/Contents/MacOS/EmacsLauncher"

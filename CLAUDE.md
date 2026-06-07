@@ -45,6 +45,7 @@ the Swift sources or `Info.plist`. Useful overrides:
 - `CONFIG=debug` — debug build (default `release`).
 - `ICON_NAME=...` — which `assets/icons/<name>.icon` to compile (default `dragon-plus`).
 - `ICON_SRC=/path/to.icns` — optional: override the generated pre-Tahoe `.icns`.
+- `UNIVERSAL=1` — build a fat arm64+x86_64 binary (default: host arch only).
 - `UPDATE_PREBUILT=1` — also refresh the committed `assets/prebuilt/` fallback from this compile.
 
 Compiling the icon needs **full Xcode** (`actool` isn't in the Command Line Tools). Without
