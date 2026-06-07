@@ -123,14 +123,6 @@ Why it's written the way it is:
   template ships with `/bin/zsh`; replace it with your login shell. If your `PATH` is set
   only in `~/.zshrc` (interactive-only), add `-i` (`-i -l -c`). (Alternatively, drop the
   shell and use `exec-path-from-shell` inside Emacs.)
-- **`TERM` / `COLORTERM` are not set here.** launchd has no terminal to inherit them from.
-  If you want them in the daemon (e.g. for subprocess color), set them in `early-init.el`
-  rather than wrapping the launch:
-
-  ```elisp
-  (setenv "TERM" "xterm-256color")
-  (setenv "COLORTERM" "truecolor")
-  ```
 
 Forking this for yourself? Change the `Label` to your own reverse-DNS id and rename the
 file to match.

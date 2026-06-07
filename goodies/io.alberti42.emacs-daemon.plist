@@ -28,10 +28,7 @@
          `emacs` and the tools its subprocesses call.  (If your PATH lives only in
          ~/.zshrc, add -i for an interactive shell too.)  Then exec Emacs as a FOREGROUND
          daemon: --fg-daemon, NOT --daemon.  Plain --daemon forks and detaches, which
-         launchd reads as "exited" and — with KeepAlive — restarts forever.
-
-         TERM / COLORTERM are intentionally NOT set here; set them in early-init.el if you
-         want them in the daemon (see goodies/README.md). -->
+         launchd reads as "exited" and — with KeepAlive — restarts forever. -->
     <key>ProgramArguments</key>
     <array>
         <string>/bin/zsh</string>
