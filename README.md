@@ -65,10 +65,63 @@ you've already chosen; your existing associations are left alone. To make it the
 candidate — there's nothing to override. The picker lets you choose deliberately whenever
 alternatives exist.)
 
-To install somewhere else:
+### Configuration
+
+#### Build options
+
+The build script reads a few environment variables — set them by prefixing the build
+command. For example, install into `/Applications` instead of `~/Applications`:
 
 ```sh
 APP="/Applications/Emacs Launcher.app" ./emacs-launcher-build.sh
+```
+
+…or make a debug build with a pre-Tahoe icon:
+
+```sh
+CONFIG=debug ICON_SRC=~/icons/emacs.icns ./emacs-launcher-build.sh
+```
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `APP` | `~/Applications/Emacs Launcher.app` | Where to install the `.app`. |
+| `CONFIG` | `release` | `release` or `debug`. |
+| `ICON_SRC` | — | Optional `.icns` for macOS versions before 26. |
+
+#### Runtime: the daemon socket
+
+By default the app connects to Emacs's standard local socket (`$TMPDIR/emacs<uid>/server`).
+If your daemon listens elsewhere — a custom path, or a named server started with
+`(setq server-name "foo")` / `emacs --daemon=foo` — point the app at it with
+**`EMACS_SOCKET_NAME`**.
+
+Apps launched from Finder, the Dock, or Spotlight don't inherit the variables you set in
+your shell, so an `export` in `.zshrc` won't reach them. Set it where launchd agents pick
+it up instead (this takes effect after your next login):
+
+```sh
+launchctl setenv EMACS_SOCKET_NAME foo
+```
+
+`launchctl setenv` doesn't survive a logout, though. To make it permanent — and to keep
+the daemon and the app in agreement — set it on the
+[daemon LaunchAgent](goodies/#ioalberti42emacs-daemonplist--keep-the-daemon-running)
+itself, by adding an `EnvironmentVariables` dict to its plist:
+
+```xml
+<key>EnvironmentVariables</key>
+<dict>
+    <key>EMACS_SOCKET_NAME</key>
+    <string>foo</string>
+</dict>
+```
+
+Equivalently, name the server on the daemon's command line with `emacs --daemon=foo`.
+
+For command-line use (running the binary directly), exporting it in your shell is enough:
+
+```sh
+export EMACS_SOCKET_NAME=foo
 ```
 
 ## Usage
@@ -149,15 +202,6 @@ script, XML, and JSON files.
 > The app registers as a **candidate** opener — it appears under *Open With* but does
 > **not** hijack your existing defaults. You choose per type whether to make it the
 > default.
-
-## Configuration
-
-| Variable | Used by | Meaning |
-|----------|---------|---------|
-| `EMACS_SOCKET_NAME` | the app at runtime | Override the daemon socket (path, or a `server-name`). Defaults to the standard local socket. |
-| `APP` | the build script | Where to install the `.app` (default `~/Applications/Emacs Launcher.app`). |
-| `CONFIG` | the build script | `release` (default) or `debug`. |
-| `ICON_SRC` | the build script | Optional `.icns` for macOS versions before 26. |
 
 ## Practical tips
 
