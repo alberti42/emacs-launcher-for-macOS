@@ -1,4 +1,4 @@
-# Emacs Launcher
+# Emacs Launcher for macOS
 
 A small, fast macOS app that opens files in your running **Emacs daemon**
 (`emacs --daemon`) and brings Emacs to the front — from Finder, the Dock, Spotlight,
