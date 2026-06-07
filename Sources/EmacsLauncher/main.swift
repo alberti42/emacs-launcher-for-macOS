@@ -466,6 +466,15 @@ func parseCommandLine() -> [OpenTarget] {
 /// mistaken for a flag. Returns normally when no such flag is present.
 func handleCLIFlags() {
     let args = CommandLine.arguments.dropFirst()
+    // Undocumented developer aid: print the resolved recent-files source and list, then
+    // exit. Verifies the daemon probe and the .eld fallback without launching the GUI.
+    if args.contains("--print-recent") {
+        print("detected recentf-save-file: \(RecentFiles.detectPath() ?? "<none>")")
+        let files = RecentFiles.list()
+        print("recent files (\(files.count)):")
+        for file in files { print("  \(file)") }
+        exit(0)
+    }
     if args.contains("-V") || args.contains("--version") {
         let info = Bundle.main.infoDictionary
         let name = (info?["CFBundleDisplayName"] as? String)

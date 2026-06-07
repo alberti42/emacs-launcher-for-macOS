@@ -17,10 +17,6 @@
 import Cocoa
 
 final class OptionPanelController: NSObject, NSWindowDelegate {
-    /// UserDefaults key for the chosen `recentf` source file. Read later by the (not yet
-    /// implemented) Spotlight recent-files feature.
-    static let recentfPathKey = "RecentfSourcePath"
-
     private let contentWidth: CGFloat = 460
     private let inset: CGFloat = 20
     private var innerWidth: CGFloat { contentWidth - 2 * inset }
@@ -29,6 +25,7 @@ final class OptionPanelController: NSObject, NSWindowDelegate {
     private var agentStatusLabel: NSTextField!
     private var agentButton: NSButton!
     private var recentPathField: NSTextField!
+    private var useDetectedButton: NSButton!
 
     /// Strong self-reference held for the lifetime of the modal so the controller isn't
     /// deallocated while its window is on screen.
@@ -98,21 +95,22 @@ final class OptionPanelController: NSObject, NSWindowDelegate {
         recentPathField.isSelectable = true
         recentPathField.setContentHuggingPriority(.defaultLow, for: .horizontal)
         recentPathField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        updateRecentPathField()
 
-        let chooseButton = makeButton("Choose…", #selector(selectRecentf))
-        chooseButton.setContentHuggingPriority(.required, for: .horizontal)
-        let recentRow = NSStackView(views: [chooseButton, recentPathField])
-        recentRow.orientation = .horizontal
-        recentRow.spacing = 10
-        recentRow.alignment = .firstBaseline
+        let chooseButton = makeButton("Choose Override…", #selector(selectRecentf))
+        useDetectedButton = makeButton("Use Detected", #selector(useDetected))
+        let recentButtons = NSStackView(views: [chooseButton, useDetectedButton])
+        recentButtons.orientation = .horizontal
+        recentButtons.spacing = 10
+
+        RecentFiles.detectPath()        // refresh the detected-path cache for display
+        updateRecentPathField()
 
         let recentSection = section(
             header: "Recent Files for Spotlight",
-            body: "Choose your Emacs recentf file (for example "
-                + "~/.cache/emacs/recentf.eld). Its entries will be offered as recent files "
-                + "in Spotlight.",
-            extras: [recentRow])
+            body: "Emacs Launcher detects your recentf file automatically from the running "
+                + "daemon; its recent entries will be offered in Spotlight. Choose an "
+                + "override only if you want to point at a specific file instead.",
+            extras: [recentButtons, recentPathField])
 
         // — Section 3: background activation + Done / Kill ————————————————
         let killButton = makeButton("Kill Emacs Launcher", #selector(killLauncher))
@@ -137,7 +135,7 @@ final class OptionPanelController: NSObject, NSWindowDelegate {
             pinFullWidth(element, in: outer)
         }
         // Full-width rows inside sections so spacers / truncation behave.
-        pinFullWidth(recentRow, in: outer)
+        pinFullWidth(recentPathField, in: outer)
         pinFullWidth(buttonRow, in: outer)
         return outer
     }
@@ -180,18 +178,17 @@ final class OptionPanelController: NSObject, NSWindowDelegate {
         agentButton.title = installed ? "Uninstall…" : "Install"
     }
 
-    /// Pick the `recentf` file and remember its path. Defaults the open panel to the
-    /// previously chosen file's folder, or ~/.cache/emacs.
+    /// Pick a `recentf` file to use as an override and remember it. Defaults the open panel
+    /// to the current override / detected file's folder, or ~/.cache/emacs.
     @objc private func selectRecentf() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
-        panel.message = "Choose your Emacs recentf file"
+        panel.message = "Choose a recentf file to use instead of the detected one"
         panel.prompt = "Choose"
 
-        let defaults = UserDefaults.standard
-        if let existing = defaults.string(forKey: Self.recentfPathKey) {
+        if let existing = RecentFiles.effectivePath() {
             panel.directoryURL = URL(fileURLWithPath: existing).deletingLastPathComponent()
         } else {
             let cache = FileManager.default.homeDirectoryForCurrentUser
@@ -200,17 +197,33 @@ final class OptionPanelController: NSObject, NSWindowDelegate {
         }
 
         if panel.runModal() == .OK, let url = panel.url {
-            defaults.set(url.path, forKey: Self.recentfPathKey)
+            UserDefaults.standard.set(url.path, forKey: RecentFiles.overridePathKey)
             updateRecentPathField()
         }
     }
 
+    /// Clear the override and go back to the auto-detected path.
+    @objc private func useDetected() {
+        UserDefaults.standard.removeObject(forKey: RecentFiles.overridePathKey)
+        updateRecentPathField()
+    }
+
+    /// Show the override (if set) or the detected path, and enable "Use Detected" only when
+    /// an override is in effect.
     private func updateRecentPathField() {
-        if let path = UserDefaults.standard.string(forKey: Self.recentfPathKey), !path.isEmpty {
-            recentPathField.stringValue = path
+        let defaults = UserDefaults.standard
+        let override = defaults.string(forKey: RecentFiles.overridePathKey)
+        let detected = defaults.string(forKey: RecentFiles.detectedPathKey)
+        useDetectedButton.isEnabled = !(override?.isEmpty ?? true)
+
+        if let override, !override.isEmpty {
+            recentPathField.stringValue = "Override: \(override)"
             recentPathField.textColor = .labelColor
+        } else if let detected, !detected.isEmpty {
+            recentPathField.stringValue = "Detected: \(detected)"
+            recentPathField.textColor = .secondaryLabelColor
         } else {
-            recentPathField.stringValue = "No file selected"
+            recentPathField.stringValue = "Not detected — is the Emacs daemon running?"
             recentPathField.textColor = .secondaryLabelColor
         }
     }
