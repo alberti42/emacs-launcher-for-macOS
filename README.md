@@ -2,7 +2,8 @@
 
 A small, fast macOS app that opens files in your running **Emacs daemon**
 (`emacs --daemon`) and brings Emacs to the front — from Finder, the Dock, Spotlight,
-drag-and-drop, or `org-protocol://` links.
+drag-and-drop, `emacs://` links (open a file, optionally at a line and column), or
+`org-protocol://` links.
 
 It's a compiled Swift launcher (inspired by [emacs-plus]) that talks to the Emacs
 daemon **directly over its local socket** — no `emacsclient` binary required — and
