@@ -270,10 +270,8 @@ The app's one-click install fills in your **login shell** and a standard `-l -c 
 
 ## Troubleshooting
 
-- **"Can't reach the Emacs server."** The daemon isn't running, or is on a different socket. The dialog shows **which socket** it tried and offers to **Install LaunchAgent** — click it and the app copies the bundled [`io.alberti42.emacs-daemon.plist`](goodies/#ioalberti42emacs-daemonplist--keep-the-daemon-running) into `~/Library/LaunchAgents`, loads it (so a daemon starts now and at every login), and reopens your file. Or start one yourself with `emacs --daemon` (`emacsclient -e t` should then print `t`; the default socket is `$TMPDIR/emacs<uid>/server`); set `EMACS_SOCKET_NAME` for a non-default socket. Direct command-line runs print this to stderr instead of a dialog, so they don't hang a script.
-- **It doesn't appear under "Open With".** Re-run `./emacs-launcher-build.sh` (it re-registers with Launch Services). If macOS is still confused, log out and back in.
-- **Coexisting with emacs-plus.** emacs-plus ships its own separate `Emacs Client.app`; this app is **Emacs Launcher** with its own bundle id, so the two don't clash and you can keep both. Just pick *Emacs Launcher* in *Open With* / *Change All…* if you want this one to handle a file type.
-- **Emacs comes up but doesn't take focus.** This is exactly the macOS 14+ case the app handles via Launch Services; confirm you launched *this* app and not a stale copy.
+- **"Can't reach the Emacs server."** The daemon isn't running, or is listening on a different socket than the app expects. The dialog names **which socket** it tried and offers to **Install LaunchAgent** (starts a daemon now and at every login, then reopens your file). If your daemon uses a non-default socket, point the app at it with `EMACS_SOCKET_NAME` (see [the daemon socket](#runtime-the-daemon-socket)). Direct command-line runs print this to stderr instead of showing a dialog, so they never hang a script.
+- **Coexisting with emacs-plus.** emacs-plus ships its own separate `Emacs Client.app`; Emacs Launcher has a different name *and* bundle id, so the two don't clash — keep both. Pick *Emacs Launcher* in *Open With* / *Change All…* for the types you want it to handle.
 
 ## How it works
 
