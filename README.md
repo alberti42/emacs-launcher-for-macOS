@@ -47,6 +47,21 @@ emacs --daemon
 This compiles the app, assembles **`~/Applications/Emacs Launcher.app`**, and registers
 it with macOS. Re-run it after pulling updates.
 
+**Nothing is forced.** Installing only registers Emacs Launcher as a *candidate* handler —
+for the relevant file types and for the `emacs://` and `org-protocol://` URL schemes. It
+does **not** set itself as the default for any file type and never overrides a default
+you've already chosen; your existing associations are left alone. To make it the default
+*when you want to*:
+
+- **File types** — pick it per type in Finder: *Get Info → Open With → Change All…*
+- **URL schemes** — use the opt-in picker
+  [`goodies/set-default-handler.swift`](goodies/) (see
+  [Practical tips](#choosing-the-org-protocol--emacs-handler)).
+
+(For a URL scheme that has no other valid handler, macOS may simply route it to the sole
+candidate — there's nothing to override. The picker lets you choose deliberately whenever
+alternatives exist.)
+
 To install somewhere else:
 
 ```sh
