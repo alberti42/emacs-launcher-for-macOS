@@ -46,9 +46,9 @@
     <!-- Icon: Tahoe (macOS 26+) reads from Assets.car; CFBundleIconName names the
          icon group inside it. CFBundleIconFile is the pre-Tahoe .icns fallback. -->
     <key>CFBundleIconName</key>
-    <string>dragon</string>
+    <string>dragon-plus</string>
     <key>CFBundleIconFile</key>
-    <string>applet</string>
+    <string>dragon-plus</string>
 
     <key>CFBundleURLTypes</key>
     <array>

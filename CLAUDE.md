@@ -23,13 +23,14 @@ so the two coexist and a user can keep both.
 | `Sources/EmacsLauncher/main.swift` | App lifecycle, open-event / CLI handling, the two-exchange flow, activation. |
 | `Sources/EmacsLauncher/EmacsServer.swift` | Native Emacs server-protocol client: socket-path resolution, `&`-quoting, send/parse. |
 | `Package.swift` | SwiftPM executable target `EmacsLauncher` (macOS 12+). |
-| `Info.plist` | Static bundle plist: UTIs, document types, `org-protocol` scheme, `LSUIElement`. Copied verbatim into the bundle. |
-| `emacs-launcher-build.sh` | Build + bundle + sign + register. The only build entry point. |
-| `Assets.car` | Tahoe (macOS 26+) app icon (the emacs-plus "dragon"). |
+| `Info.plist` | Static bundle plist: UTIs, document types, `org-protocol` scheme, `LSUIElement`. Copied into the bundle; the build script patches `CFBundleIconName`/`CFBundleIconFile` to the compiled icon's name. |
+| `emacs-launcher-build.sh` | Build + bundle + compile icon + sign + register. The only build entry point. |
+| `assets/icons/<name>.icon` | Loose Icon Composer source(s). `actool` compiles the one named by `ICON_NAME` (default `dragon-plus`, the emacs-plus "dragon") into `Assets.car` + `.icns` at build time. |
+| `assets/prebuilt/` | Committed `Assets.car` + `dragon-plus.icns` — the fallback used when `actool` is unavailable (no full Xcode). Refreshed only with `UPDATE_PREBUILT=1`. |
 | `goodies/` | Optional helpers that *generate* `emacs://` links (Finder AppleScript, `emacs-uri.el`). Not part of the app build. |
 
 SwiftPM produces only a bare executable; the `.app` bundle is assembled by the build
-script (Info.plist + icon + `lsregister`).
+script (Info.plist + compiled icon + `lsregister`).
 
 ## Build & install
 
@@ -42,7 +43,13 @@ the Swift sources or `Info.plist`. Useful overrides:
 
 - `APP=...` — target bundle path (for side-by-side testing).
 - `CONFIG=debug` — debug build (default `release`).
-- `ICON_SRC=/path/to.icns` — optional pre-Tahoe `.icns`.
+- `ICON_NAME=...` — which `assets/icons/<name>.icon` to compile (default `dragon-plus`).
+- `ICON_SRC=/path/to.icns` — optional: override the generated pre-Tahoe `.icns`.
+- `UPDATE_PREBUILT=1` — also refresh the committed `assets/prebuilt/` fallback from this compile.
+
+Compiling the icon needs **full Xcode** (`actool` isn't in the Command Line Tools). Without
+it the build falls back to the committed `assets/prebuilt/` artifacts; only if those are also
+missing is the icon skipped (the app still builds, Tahoe shows the default icon).
 
 Quick compile check without bundling: `swift build -c release`.
 
