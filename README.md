@@ -218,10 +218,14 @@ selectable handler for these schemes.
 ## Troubleshooting
 
 - **"Can't reach the Emacs server."** The daemon isn't running, or is on a different
-  socket. Start it with `emacs --daemon` (`emacsclient -e t` should then print `t`; the
-  default socket is `$TMPDIR/emacs<uid>/server`). If you use a non-default socket, set
-  `EMACS_SOCKET_NAME`. GUI launches (Finder/Dock) show this as a dialog; direct
-  command-line runs print it to stderr instead (so they don't hang a script).
+  socket. The dialog shows **which socket** it tried and offers to **Install LaunchAgent** —
+  click it and the app copies the bundled
+  [`io.alberti42.emacs-daemon.plist`](goodies/#ioalberti42emacs-daemonplist--keep-the-daemon-running)
+  into `~/Library/LaunchAgents`, loads it (so a daemon starts now and at every login), and
+  reopens your file. Or start one yourself with `emacs --daemon` (`emacsclient -e t` should
+  then print `t`; the default socket is `$TMPDIR/emacs<uid>/server`); set `EMACS_SOCKET_NAME`
+  for a non-default socket. Direct command-line runs print this to stderr instead of a
+  dialog, so they don't hang a script.
 - **It doesn't appear under "Open With".** Re-run `./emacs-launcher-build.sh` (it
   re-registers with Launch Services). If macOS is still confused, log out and back in.
 - **Coexisting with emacs-plus.** emacs-plus ships its own separate `Emacs Client.app`;

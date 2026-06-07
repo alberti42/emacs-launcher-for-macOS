@@ -88,6 +88,11 @@ Emacs Launcher needs a running daemon. This LaunchAgent starts one at login and 
 it if it ever exits, so one is always available (and Launcher never has to show its
 "Can't reach the Emacs server" alert).
 
+**Easiest install: from the app.** A copy of this file ships inside the app bundle
+(`Contents/Resources/`), so when Emacs Launcher can't reach a daemon its dialog offers an
+**Install LaunchAgent** button that does the copy + `bootstrap` for you. To do it by hand
+instead:
+
 ```sh
 cp goodies/io.alberti42.emacs-daemon.plist ~/Library/LaunchAgents/
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.alberti42.emacs-daemon.plist

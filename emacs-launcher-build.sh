@@ -30,6 +30,15 @@ chmod +x "$APP/Contents/MacOS/EmacsLauncher"
 cp "$PLIST_SRC" "$APP/Contents/Info.plist"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
+# Bundle the daemon LaunchAgent so the "Can't reach the server" dialog can offer to
+# install it (copied to ~/Library/LaunchAgents and launchctl-bootstrapped at runtime).
+DAEMON_PLIST="$SRC_DIR/goodies/io.alberti42.emacs-daemon.plist"
+if [[ -f "$DAEMON_PLIST" ]]; then
+  cp "$DAEMON_PLIST" "$APP/Contents/Resources/"
+else
+  echo "!! $DAEMON_PLIST not found -- the no-daemon dialog won't offer to install it" >&2
+fi
+
 # --- icon ---
 if [[ -f "$ASSETS_SRC" ]]; then
   echo "==> Installing Assets.car (dragon icon)"

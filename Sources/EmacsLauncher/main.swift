@@ -64,11 +64,8 @@ func runEmacsGui(targets: [OpenTarget]) {
         + " (expand-file-name invocation-name invocation-directory))")
     guard let reply = EmacsServer.send(socket, probe), let result = reply.prints.last else {
         // Couldn't connect (or no usable response) — almost always a daemon that isn't
-        // running. Tell the user instead of silently doing nothing.
-        reportFailure("Can't reach the Emacs server.",
-                      "Make sure the Emacs daemon is running — start it with "
-                      + "\"emacs --daemon\", or \"M-x server-start\" inside Emacs. "
-                      + "(EMACS_SOCKET_NAME overrides the socket location.)")
+        // running. Tell the user (and offer to install the daemon LaunchAgent).
+        handleNoDaemon(socket: socket, targets: targets)
         return
     }
     let frameExists = result.hasPrefix("(t ")
@@ -146,27 +143,32 @@ func parseOpenFileURL(_ url: URL) -> OpenTarget? {
     return path.isEmpty ? nil : OpenTarget(arg: path, position: position)
 }
 
-/// Bring the Emacs bundle to the foreground via Launch Services. `open` hands the
-/// request to LS and exits promptly; spawning it via posix_spawn keeps activation on
-/// the fast path (no Foundation Process tax). No-op if the bundle can't be resolved.
-func activateEmacsBundle(_ bundlePath: String?) {
-    guard let path = bundlePath, FileManager.default.fileExists(atPath: path) else { return }
-
+/// Spawn `exe` with `args` via posix_spawn (never Foundation `Process` — see the memory
+/// `foundation-process-spawn-tax`), discard its stdout/stderr, wait, and return its exit
+/// status (-1 if it couldn't be spawned).
+@discardableResult
+func runProcess(_ exe: String, _ args: [String]) -> Int32 {
     var actions: posix_spawn_file_actions_t?
     posix_spawn_file_actions_init(&actions)
     posix_spawn_file_actions_addopen(&actions, 1, "/dev/null", O_WRONLY, 0)
     posix_spawn_file_actions_addopen(&actions, 2, "/dev/null", O_WRONLY, 0)
     defer { posix_spawn_file_actions_destroy(&actions) }
 
-    let args: [String] = ["/usr/bin/open", "-a", path]
-    let argv: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) } + [nil]
+    let argv: [UnsafeMutablePointer<CChar>?] = ([exe] + args).map { strdup($0) } + [nil]
     defer { for arg in argv where arg != nil { free(arg) } }
 
     var pid: pid_t = 0
-    if posix_spawn(&pid, "/usr/bin/open", &actions, nil, argv, environ) == 0 {
-        var status: Int32 = 0
-        waitpid(pid, &status, 0)
-    }
+    guard posix_spawn(&pid, exe, &actions, nil, argv, environ) == 0 else { return -1 }
+    var status: Int32 = 0
+    waitpid(pid, &status, 0)
+    return status
+}
+
+/// Bring the Emacs bundle to the foreground via Launch Services. `open` hands the
+/// request to LS and exits promptly. No-op if the bundle can't be resolved.
+func activateEmacsBundle(_ bundlePath: String?) {
+    guard let path = bundlePath, FileManager.default.fileExists(atPath: path) else { return }
+    runProcess("/usr/bin/open", ["-a", path])
 }
 
 /// Report an error and terminate. Always written to stderr (useful for the CLI path);
@@ -185,6 +187,112 @@ func reportFailure(_ message: String, _ detail: String) {
         alert.runModal()
     }
     NSApp.terminate(nil)
+}
+
+// MARK: - Daemon-unreachable handling (offer to install the LaunchAgent)
+
+/// File name of the bundled LaunchAgent (in Contents/Resources and, once installed, in
+/// ~/Library/LaunchAgents). Keep in sync with goodies/<this name>.
+let launchAgentName = "io.alberti42.emacs-daemon.plist"
+
+/// Set once we've offered to install the agent this run, so a post-install retry can't
+/// loop back into offering it again.
+var alreadyOfferedInstall = false
+
+/// Where the LaunchAgent is installed for the current user.
+func launchAgentDestination() -> URL {
+    FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/LaunchAgents/\(launchAgentName)")
+}
+
+/// Show a simple informational alert (assumes activation policy is already `.regular`).
+func infoAlert(_ message: String, _ detail: String) {
+    let alert = NSAlert()
+    alert.messageText = message
+    alert.informativeText = detail
+    alert.alertStyle = .informational
+    alert.runModal()
+}
+
+/// The daemon couldn't be reached. Report it — to stderr for CLI launches, and as a
+/// dialog for GUI launches that also offers to install the bundled LaunchAgent (so a
+/// daemon starts at login and stays up). On a successful install we wait briefly for
+/// the daemon and then retry the original open.
+func handleNoDaemon(socket: String, targets: [OpenTarget]) {
+    FileHandle.standardError.write(Data(
+        ("Can't reach the Emacs server (socket: \(socket)). "
+         + "Start the daemon with \"emacs --daemon\".\n").utf8))
+    if launchedFromCommandLine { NSApp.terminate(nil); return }
+
+    NSApp.setActivationPolicy(.regular)
+    NSApp.activate(ignoringOtherApps: true)
+
+    // If the agent is already installed (or we've already offered), don't re-offer.
+    if alreadyOfferedInstall || FileManager.default.fileExists(atPath: launchAgentDestination().path) {
+        infoAlert("Can't reach the Emacs server.",
+                  "No daemon is responding on:\n  \(socket)\n\n"
+                  + "The daemon LaunchAgent is installed; it may still be starting — try "
+                  + "again in a moment, or run \"emacs --daemon\".")
+        NSApp.terminate(nil)
+        return
+    }
+
+    alreadyOfferedInstall = true
+    let alert = NSAlert()
+    alert.messageText = "Can't reach the Emacs server."
+    alert.informativeText =
+        "No Emacs daemon is responding on:\n  \(socket)\n\n"
+        + "Install a LaunchAgent to start a daemon at login and keep it running? "
+        + "(See the README for details, or to point at a different socket via "
+        + "EMACS_SOCKET_NAME.)"
+    alert.alertStyle = .warning
+    alert.addButton(withTitle: "Install LaunchAgent")
+    alert.addButton(withTitle: "Not Now")
+    guard alert.runModal() == .alertFirstButtonReturn else { NSApp.terminate(nil); return }
+
+    let (ok, message) = installLaunchAgent()
+    guard ok else { infoAlert("Couldn't install the LaunchAgent.", message); NSApp.terminate(nil); return }
+
+    // Daemon is starting (RunAtLoad). Wait for it, then retry the original open.
+    if waitForDaemon(socket, timeout: 8) {
+        runEmacsGui(targets: targets)        // succeeds now; won't re-offer (flag set)
+    } else {
+        infoAlert("LaunchAgent installed.",
+                  "\(message)\nThe Emacs daemon is still starting — try again in a moment.")
+        NSApp.terminate(nil)
+    }
+}
+
+/// Copy the bundled LaunchAgent into ~/Library/LaunchAgents and `launchctl bootstrap`
+/// it into the current GUI session (which also starts it, via RunAtLoad). Returns
+/// whether the file was installed, plus a message to show.
+func installLaunchAgent() -> (ok: Bool, message: String) {
+    let resource = (launchAgentName as NSString).deletingPathExtension
+    guard let src = Bundle.main.url(forResource: resource, withExtension: "plist") else {
+        return (false, "The LaunchAgent is missing from the app bundle.")
+    }
+    let dst = launchAgentDestination()
+    let fm = FileManager.default
+    do {
+        try fm.createDirectory(at: dst.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if fm.fileExists(atPath: dst.path) { try fm.removeItem(at: dst) }
+        try fm.copyItem(at: src, to: dst)
+    } catch {
+        return (false, "Couldn't write \(dst.path):\n\(error.localizedDescription)")
+    }
+    // Load it into the GUI session now (nonzero just means already loaded — harmless).
+    runProcess("/bin/launchctl", ["bootstrap", "gui/\(getuid())", dst.path])
+    return (true, "Installed \(dst.path).")
+}
+
+/// Poll the socket until the daemon answers or `timeout` seconds elapse.
+func waitForDaemon(_ socket: String, timeout: TimeInterval) -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if EmacsServer.isReachable(socket) { return true }
+        Thread.sleep(forTimeInterval: 0.3)
+    }
+    return false
 }
 
 // MARK: - App delegate

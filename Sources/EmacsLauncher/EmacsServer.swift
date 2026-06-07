@@ -114,6 +114,13 @@ enum EmacsServer {
 
     // MARK: Exchange
 
+    /// True if the socket accepts a connection right now (i.e. the daemon is up).
+    static func isReachable(_ path: String) -> Bool {
+        guard let fd = connect(path) else { return false }
+        close(fd)
+        return true
+    }
+
     /// Connect, send `command` (a '\n' is appended), read the whole reply, and
     /// return it parsed. Returns nil if the socket can't be reached (no daemon).
     static func send(_ path: String, _ command: [UInt8]) -> Reply? {
