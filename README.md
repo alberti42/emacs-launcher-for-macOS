@@ -354,8 +354,9 @@ Emacs coming to the front.
 
 The app icon is the **"dragon-plus"** icon from
 [d12frosted/homebrew-emacs-plus](https://github.com/d12frosted/homebrew-emacs-plus)
-(`community/icons/dragon-plus`). All rights to the artwork remain with its original
-authors — see the emacs-plus repository for licensing and attribution.
+([`community/icons/dragon-plus`](https://github.com/d12frosted/homebrew-emacs-plus/tree/0df9688bb0f6b8e05585a5e8cdc82e0b14fb1921/community/icons/dragon-plus)).
+All rights to the artwork remain with its original authors — see the emacs-plus repository
+for licensing and attribution.
 
 It lives in the repo as its loose [Icon Composer](https://developer.apple.com/icon-composer/)
 source (`assets/icons/dragon-plus.icon`), and the build compiles it with `actool` into

@@ -31,9 +31,9 @@ UPDATE_PREBUILT=1 ./emacs-launcher-build.sh
 
 The `dragon-plus.icon` icon is the **"dragon-plus"** icon from
 [d12frosted/homebrew-emacs-plus](https://github.com/d12frosted/homebrew-emacs-plus)
-(`community/icons/dragon-plus`), redistributed here as its loose Icon Composer source.
-All rights to the artwork remain with the original authors; see the emacs-plus repository
-for licensing and attribution.
+([`community/icons/dragon-plus`](https://github.com/d12frosted/homebrew-emacs-plus/tree/0df9688bb0f6b8e05585a5e8cdc82e0b14fb1921/community/icons/dragon-plus)),
+redistributed here as its loose Icon Composer source. All rights to the artwork remain
+with the original authors; see the emacs-plus repository for licensing and attribution.
 
 The build-time approach of compiling a loose `.icon` into `Assets.car` with `actool`
 follows emacs-plus's
