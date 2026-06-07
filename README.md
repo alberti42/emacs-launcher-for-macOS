@@ -96,6 +96,31 @@ CONFIG=debug ICON_SRC=~/icons/emacs.icns ./emacs-launcher-build.sh
 | `ICON_SRC` | — | Optional `.icns` for macOS versions before 26. |
 | `UPDATE_PREBUILT` | — | `1` to also refresh the committed icon fallback (see [Icon](#icon)). |
 
+#### Universal (arm64 + x86_64) build
+
+By default `swift build` compiles only for the **host architecture** — so on an Apple
+Silicon Mac you get an `arm64`-only app, and on an Intel Mac an `x86_64`-only one. That
+is the right choice if you build on each machine you use.
+
+If you'd rather compile **once and copy the app to machines of either architecture**,
+make a universal binary by adding both arches to the two `swift build` invocations in
+`emacs-launcher-build.sh`:
+
+```sh
+swift build --package-path "$SRC_DIR" -c "$CONFIG" --arch arm64 --arch x86_64
+```
+
+(apply the same `--arch arm64 --arch x86_64` to the `--show-bin-path` call right below
+it, so the script picks up the universal output path). Verify the result with:
+
+```sh
+lipo -archs "$HOME/Applications/Emacs Launcher.app/Contents/MacOS/EmacsLauncher"
+# arm64 x86_64
+```
+
+Building for `x86_64` requires that architecture's SDK slice, which a standard Xcode /
+Command Line Tools install provides.
+
 #### Runtime: the daemon socket
 
 By default the app connects to Emacs's standard local socket (`$TMPDIR/emacs<uid>/server`).
