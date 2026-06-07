@@ -23,7 +23,19 @@ enum RecentFiles {
 
     // MARK: Public API
 
-    /// The recent files, most-recent-first. Live `recentf-list` from the daemon when it's
+    /// Recent files as absolute, existing **local** paths, most-recent-first — ready to hand
+    /// to Spotlight / the filesystem. Drops remote (TRAMP) entries and ones that no longer
+    /// exist, and expands a leading `~` (recentf stores `abbreviate-file-name`d paths).
+    static func localPaths() -> [String] {
+        let fm = FileManager.default
+        return list()
+            .filter { !isRemote($0) }
+            .map { ($0 as NSString).expandingTildeInPath }
+            .filter { fm.fileExists(atPath: $0) }
+    }
+
+    /// The recent files, most-recent-first, verbatim as Emacs stores them (`~`-abbreviated,
+    /// possibly remote/non-existent). Live `recentf-list` from the daemon when it's
     /// reachable; otherwise the `.eld` parsed from disk. Empty if neither is available.
     static func list() -> [String] {
         if let socket = EmacsServer.socketPath(), EmacsServer.isReachable(socket),
@@ -118,6 +130,14 @@ enum RecentFiles {
             idx = after.index(after: idx)
         }
         return parseElispStrings(String(after[open..<end]))
+    }
+
+    /// Whether `path` is a remote TRAMP file name (`/ssh:host:/p`, `/sudo::/p`, …): it
+    /// starts with `/` and its first path segment contains a `:`. Plain local POSIX paths
+    /// don't. `~`-abbreviated paths are local (TRAMP names aren't abbreviated).
+    private static func isRemote(_ path: String) -> Bool {
+        guard path.hasPrefix("/") else { return false }
+        return path.dropFirst().prefix { $0 != "/" }.contains(":")
     }
 
     // MARK: Parsing

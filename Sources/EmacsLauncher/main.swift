@@ -470,9 +470,10 @@ func handleCLIFlags() {
     // exit. Verifies the daemon probe and the .eld fallback without launching the GUI.
     if args.contains("--print-recent") {
         print("detected recentf-save-file: \(RecentFiles.detectPath() ?? "<none>")")
-        let files = RecentFiles.list()
-        print("recent files (\(files.count)):")
-        for file in files { print("  \(file)") }
+        print("raw recentf-list entries: \(RecentFiles.list().count)")
+        let local = RecentFiles.localPaths()
+        print("local existing files (\(local.count)):")
+        for file in local { print("  \(file)") }
         exit(0)
     }
     if args.contains("-V") || args.contains("--version") {
