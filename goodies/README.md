@@ -45,8 +45,8 @@ at point to the kill ring. Load and (optionally) bind it:
 Then `M-x emacs-uri-copy` (or `C-c u`) and paste the link into Obsidian, Things, a note,
 a message — clicking it reopens that exact spot in Emacs.
 
-If you renamed the scheme in the app, match it here via `M-x customize-variable
-emacs-uri-scheme` (and `kPrefix` in the AppleScript).
+If you renamed the scheme in the app, edit the `emacs://` literal in `emacs-uri.el`
+(and `kPrefix` in the AppleScript) to match.
 
 ## `set-default-handler.swift`
 

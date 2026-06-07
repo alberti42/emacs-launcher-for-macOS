@@ -16,15 +16,6 @@
 
 (require 'url-util)   ; `url-hexify-string'
 
-(defgroup emacs-uri nil
-  "Copy emacs:// URLs that reopen a file at point."
-  :group 'convenience)
-
-(defcustom emacs-uri-scheme "emacs"
-  "URL scheme registered by Emacs Launcher, without the \"://\".
-Change this if you renamed the scheme in the app's Info.plist."
-  :type 'string)
-
 (defun emacs-uri-for-buffer (&optional buffer)
   "Return an emacs:// URL for BUFFER (default current) at point.
 Signal a `user-error' if the buffer is not visiting a file."
@@ -35,8 +26,7 @@ Signal a `user-error' if the buffer is not visiting a file."
       (let* ((path (expand-file-name file))
              ;; Hexify each path segment but keep "/" as separators.
              (encoded (mapconcat #'url-hexify-string (split-string path "/") "/")))
-        (format "%s://file%s+%d:%d"
-                emacs-uri-scheme
+        (format "emacs://file%s+%d:%d"
                 encoded
                 (line-number-at-pos)
                 (1+ (current-column)))))))
