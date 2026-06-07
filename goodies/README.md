@@ -8,7 +8,7 @@ makes Emacs Launcher the **default handler** for a scheme.
 |------|--------------|---------------|
 | `copy-emacs-uri-from-finder.applescript` | copy an `emacs://` link to the file(s) selected in **Finder** | macOS / Finder |
 | `emacs-uri.el` | copy an `emacs://` link to the **current buffer at point** (with line:column) | Emacs |
-| `set-default-handler.swift` | make Emacs Launcher the **default** app for `org-protocol://` (or any scheme) | macOS |
+| `set-default-handler.swift` | list / choose the **default** app for `org-protocol://` and `emacs://` | macOS |
 
 The link format is `emacs://file/<percent-encoded-path>[+LINE[:COLUMN]]` — see the
 main [README](../README.md#linking-to-a-file-emacs-scheme).
@@ -49,18 +49,35 @@ emacs-uri-scheme` (and `kPrefix` in the AppleScript).
 
 ## `set-default-handler.swift`
 
-`org-protocol://` is registered by several apps (emacs-mac's `Emacs.app`, emacs-plus's
-`Emacs Client.app`, …), and macOS routes the scheme to just one of them — picked by
-registration order, with **no GUI to choose**. To make Emacs Launcher the handler
-durably:
+macOS routes a URL scheme to a single handler app, with **no GUI to choose**. This
+script lists the apps you can pick from for `org-protocol://` and `emacs://`, numbered,
+and sets one as the default.
+
+**List** (no arguments) — `→` marks the current default:
 
 ```sh
-swift goodies/set-default-handler.swift            # org-protocol (default)
-swift goodies/set-default-handler.swift org-protocol emacs
+swift goodies/set-default-handler.swift
 ```
 
-It prints the previous handler and the new one. This sets a reversible *user
-preference* for the preferred app — it does **not** unregister the other apps, which
-wouldn't stick (they re-register themselves) and could disturb their other file/scheme
-associations. To undo, set a different app as the default for that scheme.
+```
+org-protocol://
+ → 01  Emacs Launcher   /Users/you/Applications/Emacs Launcher.app
+emacs://
+ → 02  Emacs Launcher   /Users/you/Applications/Emacs Launcher.app
+```
+
+**Set** by number — global across both lists; pass several, applied in order:
+
+```sh
+swift goodies/set-default-handler.swift 01        # org-protocol → option 01
+swift goodies/set-default-handler.swift 01 02     # …and emacs → option 02
+```
+
+This writes a reversible *user preference*; it does **not** unregister anything.
+
+The list is keyed by **bundle id**, not file path, so it can be shorter than
+`lsregister -dump`: an app whose bundle id resolves to a *different* copy (or to none at
+all) won't appear. On a typical setup only Emacs Launcher is a valid handler for these
+two schemes — emacs-mac's `Emacs.app` (`org.gnu.Emacs`) and emacs-plus's
+`Emacs Client.app` (`org.gnu.emacsclient`) are usually shadowed by id collisions.
 

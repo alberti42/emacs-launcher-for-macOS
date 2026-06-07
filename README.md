@@ -180,29 +180,22 @@ setup). It only matters if Finder's *Open With* points at the regular Emacs.app:
   (setq ns-pop-up-frames nil))
 ```
 
-### Make Emacs Launcher your `org-protocol` handler
+### Choosing the `org-protocol` / `emacs` handler
 
-`org-protocol://` is often registered by more than one app — emacs-mac's `Emacs.app`,
-emacs-plus's `Emacs Client.app`, any leftover copies — and macOS sends the scheme to
-exactly **one** of them, chosen by registration order, with **no GUI to pick**. To make
-Emacs Launcher the handler for good:
+macOS routes a URL scheme to a single app, with **no GUI to choose**. The goodies script
+lists the apps you can pick from for both schemes and sets one as the default:
 
 ```sh
-swift goodies/set-default-handler.swift            # claims org-protocol
+swift goodies/set-default-handler.swift        # list, numbered (→ marks the current default)
+swift goodies/set-default-handler.swift 01     # set option 01 as the default
+swift goodies/set-default-handler.swift 01 02  # several at once, applied in order
 ```
 
-This sets a reversible *user preference* for the preferred app. Note you do **not**
-deregister the competing apps: that wouldn't stick (they re-register themselves on
-launch or on the next Launch Services rescan) and would disturb their other
-associations — declaring the default is the right tool. The script prints the previous
-and new handler; pass extra schemes (e.g. `… org-protocol emacs`) to claim those too.
-
-To list every app that claims a scheme:
-
-```sh
-LSREG=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
-"$LSREG" -dump | awk '/^[[:space:]]*path:/{p=$0} /claimed schemes:.*org-protocol/{print p}' | sort -u
-```
+This writes a reversible *user preference*; you do **not** deregister the other apps
+(that wouldn't stick — they re-register themselves). The list is keyed by **bundle id**,
+so it's often shorter than the raw registrations: emacs-mac's `Emacs.app` and emacs-plus's
+`Emacs Client.app` are usually shadowed by id collisions, leaving Emacs Launcher the only
+selectable handler for these schemes.
 
 ## Troubleshooting
 
