@@ -124,6 +124,11 @@ The wire protocol is line-based: space-separated tokens, values `&`-quoted (lead
   (`parseCommandLine`, `EmacsLauncher [+L[:C]] FILE…`) is the only one that reads `argv`
   and the only one with line/column. When testing the LS path use `open -a "Emacs
   Launcher" <file>`; when testing positions run the binary directly.
+- **Never fail silently from the GUI.** When the daemon can't be reached, `reportFailure`
+  shows a modal `NSAlert` for GUI launches (Finder / Dock / open events) and writes to
+  stderr for direct CLI launches (`launchedFromCommandLine` — a modal would hang a
+  script), then terminates. Don't revert the failure guards in `runEmacsGui` to a bare
+  `NSApp.terminate`.
 - **`emacs://` scheme is app-handled.** The `openFileScheme` constant in `main.swift`
   **must match** the scheme registered in `Info.plist` (`CFBundleURLTypes`). The app
   parses `emacs://file/…+L:C` itself and opens via the socket — there is deliberately no

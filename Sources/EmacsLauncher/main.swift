@@ -26,6 +26,11 @@ import Cocoa
 /// registered in Info.plist (`CFBundleURLTypes`). Change both together to rename it.
 let openFileScheme = "emacs"
 
+/// True when the binary was run directly with file arguments (the CLI path), as opposed
+/// to a Launch Services open event / bare launch. Errors are reported to stderr in this
+/// case (a modal dialog would hang a script) and via a modal alert otherwise.
+var launchedFromCommandLine = false
+
 // MARK: - Core logic
 
 /// A file or org-protocol:// URL to open, with an optional `+LINE[:COLUMN]` position
@@ -45,7 +50,11 @@ struct OpenTarget {
 /// A running daemon always keeps an invisible *terminal* frame around, so counting
 /// `frame-list` would lie; we ask whether any frame is on a graphical display.
 func runEmacsGui(targets: [OpenTarget]) {
-    guard let socket = EmacsServer.socketPath() else { NSApp.terminate(nil); return }
+    guard let socket = EmacsServer.socketPath() else {
+        reportFailure("Can't locate the Emacs server socket.",
+                      "Set EMACS_SOCKET_NAME if your daemon uses a non-default socket.")
+        return
+    }
 
     // Exchange 1: graphical-frame check + bundle path, returned as `(t/nil "PATH")`.
     var probe = dirToken()
@@ -54,8 +63,12 @@ func runEmacsGui(targets: [OpenTarget]) {
         "(list (if (memq t (mapcar (function display-graphic-p) (frame-list))) t nil)"
         + " (expand-file-name invocation-name invocation-directory))")
     guard let reply = EmacsServer.send(socket, probe), let result = reply.prints.last else {
-        // No daemon / no response — nothing we can do.
-        NSApp.terminate(nil)
+        // Couldn't connect (or no usable response) — almost always a daemon that isn't
+        // running. Tell the user instead of silently doing nothing.
+        reportFailure("Can't reach the Emacs server.",
+                      "Make sure the Emacs daemon is running — start it with "
+                      + "\"emacs --daemon\", or \"M-x server-start\" inside Emacs. "
+                      + "(EMACS_SOCKET_NAME overrides the socket location.)")
         return
     }
     let frameExists = result.hasPrefix("(t ")
@@ -156,6 +169,24 @@ func activateEmacsBundle(_ bundlePath: String?) {
     }
 }
 
+/// Report an error and terminate. Always written to stderr (useful for the CLI path);
+/// for GUI launches (Finder / Dock / open events) it also shows a modal alert, since a
+/// silent no-op there is baffling. A modal is *not* shown for CLI launches — that would
+/// hang a script.
+func reportFailure(_ message: String, _ detail: String) {
+    FileHandle.standardError.write(Data("\(message) \(detail)\n".utf8))
+    if !launchedFromCommandLine {
+        NSApp.setActivationPolicy(.regular)        // so the alert can come to the front
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = message
+        alert.informativeText = detail
+        alert.alertStyle = .warning
+        alert.runModal()
+    }
+    NSApp.terminate(nil)
+}
+
 // MARK: - App delegate
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -187,6 +218,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let cliTargets = parseCommandLine()
         if !cliTargets.isEmpty {
             handledOpen = true
+            launchedFromCommandLine = true
             runEmacsGui(targets: cliTargets)
             return
         }

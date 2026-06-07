@@ -214,10 +214,11 @@ selectable handler for these schemes.
 
 ## Troubleshooting
 
-- **Nothing happens / Emacs doesn't open.** Make sure the daemon is running and
-  listening on its default local socket (`emacsclient -e t` should print `t`, or check
-  for `$TMPDIR/emacs<uid>/server`). If you use a non-default socket, set
-  `EMACS_SOCKET_NAME`.
+- **"Can't reach the Emacs server."** The daemon isn't running, or is on a different
+  socket. Start it with `emacs --daemon` (`emacsclient -e t` should then print `t`; the
+  default socket is `$TMPDIR/emacs<uid>/server`). If you use a non-default socket, set
+  `EMACS_SOCKET_NAME`. GUI launches (Finder/Dock) show this as a dialog; direct
+  command-line runs print it to stderr instead (so they don't hang a script).
 - **It doesn't appear under "Open With".** Re-run `./emacs-launcher-build.sh` (it
   re-registers with Launch Services). If macOS is still confused, log out and back in.
 - **Coexisting with emacs-plus.** emacs-plus ships its own separate `Emacs Client.app`;
