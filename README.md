@@ -21,25 +21,17 @@ It's a compiled Swift launcher (inspired by [emacs-plus]) that talks to the Emac
 **To run the app** (the [prebuilt download](#install) — no toolchain needed):
 
 - macOS 12 (Monterey) or later.
-- **Emacs**, run as a **daemon** (`emacs --daemon`). The app does its work by talking to a running
-  Emacs server over its local socket — it does not start Emacs itself, and needs no `emacsclient`
-  binary. Any reasonably recent Emacs works: the only requirement is daemon/server support, which
-  Emacs has had for many years. If no daemon is running when you open a file, the app offers to
-  install a LaunchAgent that starts one at every login (and restarts it if it exits).
+- **Emacs**, run as a **daemon** (`emacs --daemon`). The app talks to a running Emacs server over
+  its local socket — it does not start Emacs itself, and needs no `emacsclient` binary. Any
+  reasonably recent Emacs works (the only requirement is daemon/server support). To have a daemon
+  start automatically and stay up, see
+  [Keeping a daemon running](#keeping-a-daemon-running-launchagent).
 
 **To build from source** (only if you [build it yourself](#manual-installation-build-from-source) instead of downloading):
 
 - The Swift toolchain — Xcode or the Command Line Tools (`xcode-select --install`).
 - Optionally **full Xcode**, so `actool` can compile the Tahoe icon; without it the build falls
   back to the committed prebuilt icon.
-
-Start a daemon if you don't already run one, e.g.:
-
-```sh
-emacs --daemon
-```
-
-To keep one running across logins, see the LaunchAgent in [`goodies/`](goodies/#ioalberti42emacs-daemonplist--keep-the-daemon-running).
 
 ## Install
 
