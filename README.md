@@ -230,8 +230,13 @@ exits, install the bundled LaunchAgent — three equivalent ways:
 - **By hand:** see
   [`goodies/`](goodies/#ioalberti42emacs-daemonplist--keep-the-daemon-running).
 
-It runs `emacs --fg-daemon` under launchd's `KeepAlive`. To change the socket it serves
-(`EMACS_SOCKET_NAME`) or set `TERM`/`COLORTERM`, see the goodies notes.
+The app's one-click install fills in your **login shell** and a standard
+`-l -c "exec emacs --fg-daemon"` invocation, which covers most setups. **For special
+needs** — a custom `PATH`/environment, a different shell or invocation (e.g. `-i` for
+interactive config), sourcing extra env files, a non-default socket
+(`EMACS_SOCKET_NAME`), or `TERM`/`COLORTERM` — **install
+[`goodies/io.alberti42.emacs-daemon.plist`](goodies/#ioalberti42emacs-daemonplist--keep-the-daemon-running)
+by hand and edit it** instead.
 
 ## Troubleshooting
 

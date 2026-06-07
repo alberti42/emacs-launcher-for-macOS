@@ -96,10 +96,15 @@ it if it ever exits, so one is always available (and Launcher never has to show 
 - **When it can't reach a daemon:** the error dialog offers an **Install LaunchAgent**
   button that does the copy + `bootstrap`.
 
-To do it by hand instead:
+**Recommended for special setups: install by hand and edit.** The app's one-click install
+fills in your login shell and the standard `-l -c "exec emacs --fg-daemon"`, which suits
+most people. But if you need more — a custom `PATH`/environment, a different shell or
+invocation (e.g. `-i` for interactive config), sourcing extra env files, or a non-default
+socket — copy this file yourself and tailor it:
 
 ```sh
 cp goodies/io.alberti42.emacs-daemon.plist ~/Library/LaunchAgents/
+# edit ~/Library/LaunchAgents/io.alberti42.emacs-daemon.plist to taste, then:
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.alberti42.emacs-daemon.plist
 # stop / remove:
 launchctl bootout gui/$(id -u)/io.alberti42.emacs-daemon
