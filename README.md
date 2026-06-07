@@ -27,9 +27,15 @@ from coming to the foreground.
 
 ## Requirements
 
-- macOS 12 or later.
-- A running **Emacs server/daemon** listening on its default local socket (the app
-  connects to it directly; no `emacsclient` binary is needed).
+- macOS 12 (Monterey) or later.
+- **Emacs**, run as a **daemon** (`emacs --daemon`). The app does its work by talking to
+  a running Emacs server over its local socket — it does not start Emacs itself. Any
+  reasonably recent Emacs works: the only requirement is daemon/server support, which
+  Emacs has had for many years. If no daemon is running when you open a file, the app
+  offers to install a LaunchAgent that starts one at every login (and restarts it if it
+  exits) — see below.
+- The app connects to the daemon **directly over its local socket**; no `emacsclient`
+  binary is needed.
 - The Swift toolchain (Xcode or Command Line Tools) to build.
 
 Start a daemon if you don't already run one, e.g.:
