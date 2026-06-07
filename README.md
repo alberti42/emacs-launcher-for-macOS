@@ -101,6 +101,8 @@ APP="/Applications/Emacs Launcher.app" ./emacs-launcher-build.sh
   carries no line/column, since Launch Services has no notion of one.) Run it with
   `-h`/`--help` for usage, or `-V`/`--version`.
 
+- **emacs:** links like `emacs://file/Users/you/notes.org+42:5` open a file at an
+  optional line/column — see [Linking to a file](#linking-to-a-file-emacs-scheme) below.
 - **org-protocol:** links like `org-protocol://capture?...` are handed straight to Emacs.
   Note: stock GNU Emacs (the Cocoa/NS build) registers only `mailto`, so `org-protocol`
   has **no handler out of the box** — Emacs Launcher provides it, replacing emacs-plus's
