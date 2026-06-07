@@ -313,7 +313,7 @@ Emacs normally runs as a background **daemon** (`emacs --daemon`): one long-live
 
   It activates the **exact** Emacs app bundle the daemon is running from — which it asks the daemon to report — in case you have more than one `Emacs.app` build installed.
 
-**5. It stays ready.** Emacs Launcher runs as an *accessory* app: no Dock icon, no menu bar. The app is tiny (a ~250 kB executable with a small memory footprint), so after the first launch it simply stays resident in memory rather than quitting. That first cold start takes roughly **250 ms**; every later request — handled by the already-running process — completes in about **100 ms**. All you see is Emacs coming to the front. (To stop the resident process, open the [settings panel](#settings-panel) and choose *Kill Emacs Launcher*.)
+**5. It stays ready.** Emacs Launcher runs as an *accessory* app: no Dock icon, no menu bar. After the first launch it simply stays resident in memory rather than quitting, so later requests are faster. The per-platform compiled executable is just ~250 kB; resident, the process uses around **~10 MB** of memory — almost all of which is the AppKit framework any such app links, not the app's own code. That first cold start takes roughly **250 ms**; every later request — handled by the already-running process — completes in about **100 ms**. All you see is Emacs coming to the front. (To stop the resident process, open the [settings panel](#settings-panel) and choose *Kill Emacs Launcher*.)
 
 ## Icon
 
