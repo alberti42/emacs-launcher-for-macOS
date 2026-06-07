@@ -1,6 +1,6 @@
 # Emacs Launcher for macOS
 
-A small, fast macOS app that opens files in your running **Emacs daemon** (`emacs --daemon`) and brings Emacs to the front — from Finder, the Dock, Spotlight, drag-and-drop, `emacs://` links (open a file, optionally at a line and column), or `org-protocol://` links.
+A small, fast macOS app that opens files in your running **Emacs daemon** (`emacs --daemon`) and brings Emacs to the front — from Finder, the Dock, Spotlight, drag-and-drop, `emacs://` links (open a file, optionally at a line and column), or `org-protocol://` links. Your recent Emacs files are searchable right in **Spotlight**, and after the first launch the app stays ready in the background so opens feel nearly instant.
 
 It's a compiled Swift launcher (inspired by [emacs-plus]) that talks to the Emacs daemon **directly over its local socket** — no `emacsclient` binary required — and works around the macOS 14+ behaviour that otherwise stops a background Emacs daemon from coming to the foreground.
 
@@ -13,7 +13,8 @@ It's a compiled Swift launcher (inspired by [emacs-plus]) that talks to the Emac
 - **Reliably raises Emacs** to the foreground (the two-step raise needed on macOS 14 and later).
 - **`org-protocol://`** support for `org-capture`, `org-roam`, and friends.
 - **`emacs://` links** that open a file — optionally at a line and column — from Obsidian, Things, notes, anywhere macOS resolves URLs.
-- **Invisible launcher** — no Dock bounce or stray icon; it does its job and quits.
+- **Recent files in Spotlight** — your Emacs `recentf` history is searchable in Spotlight; pick a file and it opens in your frame.
+- **Stays ready in the background** — no Dock bounce or stray icon; after the first launch the app keeps running quietly so later opens are near-instant.
 - **Fast** — activation fires in roughly 130 ms (and ~70 ms when opening a file).
 
 ## Requirements
@@ -157,7 +158,8 @@ export EMACS_SOCKET_NAME=foo
 
 - **Finder:** right-click a file → *Open With* → *Emacs Launcher* (or set it as the default for that type as above).
 - **Dock / Spotlight:** launch *Emacs Launcher* to bring Emacs forward (opening a frame if needed).
-- **Option-launch:** hold **⌥ Option** while launching the app (no file) to open the *daemon LaunchAgent* panel — install it (so a daemon starts at login and stays up), or uninstall it if it's already installed. See [Practical tips](#keeping-a-daemon-running-launchagent).
+- **Spotlight recent files (macOS Tahoe):** your recent Emacs files are indexed into Spotlight. Type part of a file name, press **Tab** to step into the Emacs Launcher results, and ⏎ to open the file in your Emacs frame. You can turn this on or off in the [settings panel](#settings-panel).
+- **Option-launch (settings):** hold **⌥ Option** while launching the app (no file) to open the **settings panel** — daemon LaunchAgent, Spotlight indexing, the recent-files source, and *Kill Emacs Launcher*. See [Settings panel](#settings-panel).
 - **Drag-and-drop:** drop files onto the app.
 - **Command line (via Launch Services):**
 
@@ -173,8 +175,28 @@ export EMACS_SOCKET_NAME=foo
 
   `+12` (line only) and plain paths work too; relative paths resolve against the current directory, and you can pass several `[+POS] FILE` pairs. (Note: a file path given to the **binary** is only honoured this way — passing it to `open -a` instead carries no line/column, since Launch Services has no notion of one.) Run it with `-h`/`--help` for usage, or `-V`/`--version`.
 
+- **`--recentf` (recent files as JSON):** the bundle's binary can print your recent Emacs files for other tools to consume:
+
+  ```sh
+  "$HOME/Applications/Emacs Launcher.app/Contents/MacOS/EmacsLauncher" --recentf
+  ```
+
+  The output is a JSON array of `{title, subtitle, path}` entries (existing files under your home folder), taken live from the running daemon. This makes it easy to surface recent Emacs files in other third-party launchers — for example a **LaunchBar** action that lists them and opens the chosen file in Emacs.
+
 - **emacs:** links like `emacs://file/Users/you/notes.org+42:5` open a file at an optional line/column — see [Linking to a file](#linking-to-a-file-emacs-scheme) below.
 - **org-protocol:** links like `org-protocol://capture?...` are handed straight to Emacs.  Note: stock GNU Emacs (the Cocoa/NS build) registers only `mailto`, so `org-protocol` has **no handler out of the box** — Emacs Launcher provides it, replacing emacs-plus's separate `Emacs Client.app` helper. (The emacs-mac port patches it into its own `Emacs.app`, so there it simply coexists.)
+
+## Settings panel
+
+Hold **⌥ Option** while launching Emacs Launcher (with no file) to open its settings panel:
+
+![Emacs Launcher settings panel](Emacs_Launcher_screenshot.jpg)
+
+It has three sections:
+
+- **Emacs daemon LaunchAgent** — install a LaunchAgent so an Emacs daemon starts at login and is restarted if it ever exits, or uninstall it if it's already there. See [Keeping a daemon running](#keeping-a-daemon-running-launchagent).
+- **Recent files for Spotlight** — turn Spotlight indexing of your recent files on or off. The `recentf` file is detected automatically from the running daemon; you can point at a specific file with **Choose Override…**, or return to the detected one with **Use Detected**.
+- **Background activation** — explains that the app stays resident after the first launch for faster response, with **Kill Emacs Launcher** to stop the running process and **Done** to close the panel.
 
 ## Linking to a file (`emacs://` scheme)
 
@@ -259,8 +281,9 @@ This writes a reversible *user preference*; you do **not** deregister the other 
 
 Emacs Launcher needs a running daemon. To have one start at login and restart if it exits, install the bundled LaunchAgent — three equivalent ways:
 
-- **Option-launch:** hold **⌥ Option** while launching the app (no file) to open a panel
-  that installs the agent (or uninstalls it if it's already installed).
+- **Option-launch:** hold **⌥ Option** while launching the app (no file) to open the
+  [settings panel](#settings-panel), whose first section installs the agent (or uninstalls
+  it if it's already installed).
 - **When prompted:** if the daemon is ever unreachable, the error dialog offers to install
   it (and then reopens your file).
 - **By hand:** see
@@ -290,7 +313,7 @@ Emacs normally runs as a background **daemon** (`emacs --daemon`): one long-live
 
   It activates the **exact** Emacs app bundle the daemon is running from — which it asks the daemon to report — in case you have more than one `Emacs.app` build installed.
 
-**5. It gets out of the way.** Emacs Launcher runs as an *accessory* app: no Dock icon, no menu bar. It does this one job in a fraction of a second and then quits. All you see is Emacs coming to the front.
+**5. It stays ready.** Emacs Launcher runs as an *accessory* app: no Dock icon, no menu bar. The app is tiny (a ~250 kB executable with a small memory footprint), so after the first launch it simply stays resident in memory rather than quitting. That first cold start takes roughly **250 ms**; every later request — handled by the already-running process — completes in about **100 ms**. All you see is Emacs coming to the front. (To stop the resident process, open the [settings panel](#settings-panel) and choose *Kill Emacs Launcher*.)
 
 ## Icon
 
