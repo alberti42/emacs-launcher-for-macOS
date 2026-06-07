@@ -21,6 +21,11 @@
 //
 import Cocoa
 
+/// The URL scheme this app handles for "open a file in Emacs" links:
+/// `emacs://file/<percent-encoded-path>[+LINE[:COLUMN]]`. Must match the scheme
+/// registered in Info.plist (`CFBundleURLTypes`). Change both together to rename it.
+let openFileScheme = "emacs"
+
 // MARK: - Core logic
 
 /// A file or org-protocol:// URL to open, with an optional `+LINE[:COLUMN]` position
@@ -106,6 +111,28 @@ func parseBundlePath(_ result: String) -> String? {
     return path.hasSuffix(".app") ? path : nil
 }
 
+/// Parse an `emacs://file/<percent-encoded-path>[+LINE[:COLUMN]]` URL into an
+/// `OpenTarget`. The trailing `+LINE:COLUMN` is matched against the *raw* (still
+/// percent-encoded) path, so a literal `+` inside a file name — which must be encoded
+/// as `%2B` in the URL — is never mistaken for the position delimiter. The `+LINE:COL`
+/// token is Emacs's own position syntax, so it passes straight through as the position.
+/// Returns nil if the URL is malformed (e.g. wrong host or empty path).
+func parseOpenFileURL(_ url: URL) -> OpenTarget? {
+    guard url.host?.lowercased() == "file",
+          let raw = URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedPath,
+          !raw.isEmpty else { return nil }
+
+    var encodedPath = raw
+    var position: String?
+    if let range = raw.range(of: "\\+[0-9]+(:[0-9]+)?$", options: .regularExpression) {
+        position = String(raw[range])                        // e.g. "+42:5"
+        encodedPath = String(raw[raw.startIndex..<range.lowerBound])
+    }
+
+    let path = encodedPath.removingPercentEncoding ?? encodedPath
+    return path.isEmpty ? nil : OpenTarget(arg: path, position: position)
+}
+
 /// Bring the Emacs bundle to the foreground via Launch Services. `open` hands the
 /// request to LS and exits promptly; spawning it via posix_spawn keeps activation on
 /// the fast path (no Foundation Process tax). No-op if the bundle can't be resolved.
@@ -137,14 +164,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// between `on open` / `on open location` and `on run`.
     private var handledOpen = false
 
-    /// Finder "Open With", drag-and-drop, and org-protocol:// URLs all arrive here on
-    /// modern macOS — file URLs and scheme URLs in one unified callback. Launch Services
-    /// carries no line/column, so positions are always nil here.
+    /// Finder "Open With", drag-and-drop, `file://`, `emacs://file/…`, and
+    /// `org-protocol://` URLs all arrive here on modern macOS, in one unified callback.
     func application(_ application: NSApplication, open urls: [URL]) {
         handledOpen = true
-        let targets = urls.map { url in
-            // org-protocol://... kept verbatim; file URLs become plain paths.
-            OpenTarget(arg: url.isFileURL ? url.path : url.absoluteString, position: nil)
+        let targets: [OpenTarget] = urls.compactMap { url in
+            if url.scheme?.lowercased() == openFileScheme {
+                return parseOpenFileURL(url)        // emacs://file/… (nil if malformed → dropped)
+            }
+            // file URLs become plain paths; org-protocol://… is kept verbatim.
+            return OpenTarget(arg: url.isFileURL ? url.path : url.absoluteString, position: nil)
         }
         runEmacsGui(targets: targets)
     }

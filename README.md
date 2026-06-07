@@ -20,6 +20,8 @@ from coming to the foreground.
 - **Reliably raises Emacs** to the foreground (the two-step raise needed on macOS 14
   and later).
 - **`org-protocol://`** support for `org-capture`, `org-roam`, and friends.
+- **`emacs://` links** that open a file — optionally at a line and column — from
+  Obsidian, Things, notes, anywhere macOS resolves URLs.
 - **Invisible launcher** — no Dock bounce or stray icon; it does its job and quits.
 - **Fast** — activation fires in roughly 130 ms (and ~70 ms when opening a file).
 
@@ -79,6 +81,37 @@ APP="/Applications/Emacs Launcher.app" ./emacs-launcher-build.sh
   `-h`/`--help` for usage, or `-V`/`--version`.
 
 - **org-protocol:** links like `org-protocol://capture?...` are handed straight to Emacs.
+
+## Linking to a file (`emacs://` scheme)
+
+Emacs Launcher registers an `emacs://` URL scheme, so a *link* can open a file in Emacs —
+optionally at a line and column:
+
+```
+emacs://file/<absolute-path>           open the file
+emacs://file/<absolute-path>+42        …at line 42
+emacs://file/<absolute-path>+42:5      …at line 42, column 5
+```
+
+The path is **percent-encoded** (spaces → `%20`; a literal `+` in a name → `%2B`, so it
+can't be confused with the `+LINE:COLUMN` delimiter). `+LINE:COLUMN` is Emacs's own
+position syntax. The app parses the URL itself and opens the file over the daemon socket
+— **no Emacs configuration is required**.
+
+Use it anywhere macOS resolves URL schemes — an Obsidian or Things link, a note, a
+message:
+
+```markdown
+[foo.org, line 42](emacs://file/Users/andrea/notes/foo.org+42)
+```
+
+To *generate* these links, see [`goodies/`](goodies/): an AppleScript that copies a link
+for the current Finder selection, and an Emacs command (`emacs-uri-copy`) that copies a
+link to the current buffer at point.
+
+> Unlike `org-protocol://` — which hands the URL to Emacs's Org library to interpret
+> (capture, store-link, …) and needs Org configuration — the `emacs://` scheme is plain
+> "open this file" and is handled entirely by the app.
 
 ## File types it handles
 

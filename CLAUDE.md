@@ -26,6 +26,7 @@ so the two coexist and a user can keep both.
 | `Info.plist` | Static bundle plist: UTIs, document types, `org-protocol` scheme, `LSUIElement`. Copied verbatim into the bundle. |
 | `emacs-launcher-build.sh` | Build + bundle + sign + register. The only build entry point. |
 | `Assets.car` | Tahoe (macOS 26+) app icon (the emacs-plus "dragon"). |
+| `goodies/` | Optional helpers that *generate* `emacs://` links (Finder AppleScript, `emacs-uri.el`). Not part of the app build. |
 
 SwiftPM produces only a bare executable; the `.app` bundle is assembled by the build
 script (Info.plist + icon + `lsregister`).
@@ -61,9 +62,12 @@ help/version to stdout and `exit`s for the exact tokens `-h`/`--help`/`-V`/`--ve
 (exact-match only, so LS noise never trips it) — no AppKit, no Emacs contact.
 
 Three ways work arrives, all funnelling into `runEmacsGui(targets:)`:
-- `application(_:open:)` — files (Open With / drag-drop) and `org-protocol://` URLs
-  arrive together in one unified callback. File URLs become paths, scheme URLs are
-  passed through verbatim. Launch Services carries no line/column, so positions are nil.
+- `application(_:open:)` — files (Open With / drag-drop), `file://`, `emacs://file/…`,
+  and `org-protocol://` URLs arrive together in one unified callback. File URLs become
+  paths; `emacs://file/<encoded-path>[+L:C]` is parsed by `parseOpenFileURL` (position
+  matched on the *raw* path so an encoded `%2B` in a name isn't taken as the delimiter);
+  other schemes (org-protocol) pass through verbatim. Of these, only `emacs://` carries
+  a line/column.
 - `applicationDidFinishLaunching` → `parseCommandLine()` — when the **binary is run
   directly** with file args (`EmacsLauncher [+LINE[:COLUMN]] FILE...`), emacsclient-style.
   A `+12:4`-type token sets the `-position` for the following file; args starting with
@@ -120,6 +124,11 @@ The wire protocol is line-based: space-separated tokens, values `&`-quoted (lead
   (`parseCommandLine`, `EmacsLauncher [+L[:C]] FILE…`) is the only one that reads `argv`
   and the only one with line/column. When testing the LS path use `open -a "Emacs
   Launcher" <file>`; when testing positions run the binary directly.
+- **`emacs://` scheme is app-handled.** The `openFileScheme` constant in `main.swift`
+  **must match** the scheme registered in `Info.plist` (`CFBundleURLTypes`). The app
+  parses `emacs://file/…+L:C` itself and opens via the socket — there is deliberately no
+  Emacs-side handler (unlike `org-protocol`, which is forwarded verbatim for Org to
+  interpret). To rename the scheme, change both places (and the `goodies/` scripts).
 - **Distinct identity from emacs-plus.** Name **"Emacs Launcher"**, bundle id
   **`io.alberti42.EmacsLauncher`**, executable **`EmacsLauncher`** (must match
   `CFBundleExecutable` in `Info.plist` and the SwiftPM target). Do *not* revert to
@@ -139,4 +148,5 @@ The wire protocol is line-based: space-separated tokens, values `&`-quoted (lead
 - **Markdown** (`net.daringfireball.markdown`, `public.markdown`).
 - **Broad catch-all** (`public.text`, `public.plain-text`, `public.source-code`,
   scripts, xml/json, `public.data`) so any plain-text/source file is still covered.
-- **URL scheme** `org-protocol` for org-capture / org-roam.
+- **URL schemes**: `emacs` (app-handled "open file at position", see above) and
+  `org-protocol` (forwarded to Org for org-capture / org-roam).

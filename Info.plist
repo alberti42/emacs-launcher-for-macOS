@@ -50,9 +50,21 @@
     <key>CFBundleIconFile</key>
     <string>applet</string>
 
-    <!-- org-protocol:// (org-capture, org-roam, etc.) -->
     <key>CFBundleURLTypes</key>
     <array>
+        <!-- emacs://file/<percent-encoded-path>[+LINE[:COLUMN]] — open a file at a
+             position. Parsed by the app itself (no Emacs config needed). The scheme
+             string ("emacs") must match `openFileScheme` in main.swift. -->
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>Open File in Emacs</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>emacs</string>
+            </array>
+        </dict>
+        <!-- org-protocol:// (org-capture, org-roam, etc.) — forwarded verbatim to the
+             daemon, where Org's org-protocol library interprets it. -->
         <dict>
             <key>CFBundleURLName</key>
             <string>Org Protocol</string>
