@@ -123,6 +123,10 @@ Why it's written the way it is:
   template ships with `/bin/zsh`; replace it with your login shell. If your `PATH` is set
   only in `~/.zshrc` (interactive-only), add `-i` (`-i -l -c`). (Alternatively, drop the
   shell and use `exec-path-from-shell` inside Emacs.)
+- **`ProcessType` = `Interactive`.** The daemon is the backend of a user-facing GUI app, so
+  launchd must not throttle it. Without this key launchd applies the `Standard` class, and
+  `Background` (or the old `LowPriorityIO`/`Nice` knobs) drops it into low-priority I/O and
+  background CPU — which makes editing feel sluggish. Don't set `LowPriorityIO` here.
 
 Forking this for yourself? Change the `Label` to your own reverse-DNS id and rename the
 file to match.

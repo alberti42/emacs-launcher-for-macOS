@@ -41,7 +41,12 @@
     <true/>
     <key>KeepAlive</key>
     <true/>
-    <key>LowPriorityIO</key>
-    <true/>
+
+    <!-- Interactive: the daemon backs a user-facing GUI app, so launchd must NOT throttle
+         it.  The default for a LaunchAgent is "Standard", and "Background" (or the old
+         LowPriorityIO/Nice knobs) puts it in the low-priority I/O + background CPU class,
+         which makes editing feel sluggish (slow file reads, laggy redisplay). -->
+    <key>ProcessType</key>
+    <string>Interactive</string>
 </dict>
 </plist>
